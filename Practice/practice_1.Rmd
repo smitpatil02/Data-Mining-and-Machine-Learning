@@ -1,0 +1,84 @@
+---
+title: "practice_1"
+output: pdf_document
+---
+
+```{r}
+#Problem 1
+
+#Importing Libraries
+library(data.table)
+
+#Importing Data
+cust_data <- read.csv('customertxndata.csv')
+setDT(cust_data)
+
+#Total Revenue
+cust_data[,na.exclude(sum(revenue))]
+
+#Mean Visits
+cust_data[,na.exclude(mean(visits))]
+
+#Mean Revenue
+cust_data[,na.exclude(mean(revenue))]
+
+#Median Revenue
+cust_data[,na.exclude(median(revenue))]
+
+#Most Common Gender
+gender_count <- cust_data[,.(count = .N), by = "gender"]
+gender_count
+gender_count[,na.exclude(max(count))]
+
+```
+
+
+```{r}
+#Problem 2
+library("ggplot2")
+
+#Total revenue by gender
+revenue_by_gender <- cust_data[, sum(revenue), by = gender]
+revenue_by_gender <- na.omit(revenue_by_gender)
+
+#Bar chart 
+ggplot(data=revenue_by_gender, aes(x=gender, y=V1)) +
+  geom_bar(stat="identity", fill="steelblue", width = 0.5) +
+  xlab("Gender") + ylab("Revenue")
+```
+
+
+```{r}
+#Problem 3
+library("ggpubr")
+
+#Pearson Moment of Correlation between number of visits and revenue
+ggscatter(cust_data, x = "visits", y = "revenue", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson",
+          xlab = "Number of visits", ylab = "Revenue generated") +
+  geom_smooth(method = 'gam', formula = y ~ s(x, bs = "cs"))
+```
+
+
+
+```{r}
+#Problem 5
+
+#Mean transactions
+clean_cust_data <- na.omit(cust_data)
+clean_cust_data[, round(mean(transactions))]
+
+
+#Creating function for mode
+getmode <- function(v) 
+  {
+   uniqv <- unique(v)
+   uniqv[which.max(tabulate(match(v, uniqv)))]
+  }
+
+#Mode of gender
+cust_data[, getmode(gender)]
+```
+
+
