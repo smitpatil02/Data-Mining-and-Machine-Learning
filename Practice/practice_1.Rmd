@@ -61,6 +61,15 @@ ggscatter(cust_data, x = "visits", y = "revenue",
 ```
 
 
+```{r}
+#Problem 4
+library(tidyverse)
+
+#creating a table containing only the NA values
+na_data <- cust_data %>% filter_all(any_vars(is.na(.)))
+
+```
+
 
 ```{r}
 #Problem 5
