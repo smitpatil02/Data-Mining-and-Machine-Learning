@@ -91,3 +91,46 @@ cust_data[, getmode(gender)]
 ```
 
 
+```{r}
+#Problem 6
+
+#Spliting the data into a trainig and validation dataset 
+training_data <- cust_data[rep(c(TRUE,FALSE), length = .N), ]     #logical vector c(TRUE,FALSE) will only return 1st,3rd,5th...values
+validation_data <- cust_data[rep(c(FALSE,TRUE), length = .N), ]   #logical vector c(FALSE,TRUE) will only return 2nd,4th,6th...values
+```
+
+
+```{r}
+#Problem 7
+
+#Calculating mean revenue for trainig dataset
+training_data[,na.exclude(mean(revenue))]
+
+#Calculating mean revenue for validation dataset
+validation_data[,na.exclude(mean(revenue))]
+```
+
+
+```{r}
+#Problem 8
+set.seed(77654)
+
+#Creating first sample to set 60% of data for training
+sample_1 <- sample.int(n = nrow(cust_data), size = floor(.60*nrow(cust_data)), replace = F)
+
+#Creating dataset for training
+training <- cust_data[sample_1,]
+
+#Creating a dataset of the remaining data for testing and validation
+remaining_data <- cust_data[-sample_1,]
+
+#Creating second sample to split the reamining dataset for testing and validation
+sample_2 <- sample.int(n = nrow(remaining_data), size = floor(.50*nrow(remaining_data)), replace = F)
+
+#Creating dataset for testing
+testing <- remaining_data[sample_2, ]
+
+#Creating dataset for validation
+validation <- remaining_data[-sample_2, ]
+```
+
