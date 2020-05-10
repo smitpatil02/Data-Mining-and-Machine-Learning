@@ -78,6 +78,9 @@ na_data <- cust_data %>% filter_all(any_vars(is.na(.)))
 clean_cust_data <- na.omit(cust_data)
 clean_cust_data[, round(mean(transactions))]
 
+#Assigning mean value to NA in transactions column
+impute_trans <- cust_data
+impute_trans[is.na(cust_data$transactions)] <- 1
 
 #Creating function for mode
 getmode <- function(v) 
@@ -88,6 +91,10 @@ getmode <- function(v)
 
 #Mode of gender
 cust_data[, getmode(gender)]
+
+#Assigning mode value to NA in gender column
+impute_gender <- cust_data
+impute_gender[is.na(cust_data$gender)] <- "Male"
 ```
 
 
