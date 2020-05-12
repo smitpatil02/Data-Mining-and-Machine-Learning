@@ -14,22 +14,25 @@ cust_data <- read.csv('customertxndata.csv')
 setDT(cust_data)
 
 #Total Revenue
-cust_data[,na.exclude(sum(revenue))]
+sum_revenue <- cust_data[,na.omit(sum(revenue))]
+sprintf("total transaction amount: %s", sum_revenue)
 
 #Mean Visits
-cust_data[,na.exclude(mean(visits))]
+mean_visits <- cust_data[,na.omit(mean(visits))]
+sprintf("mean number of visits: %s", mean_visits)
 
 #Mean Revenue
-cust_data[,na.exclude(mean(revenue))]
+median_revenue <- cust_data[,na.omit(median(revenue))]
+sprintf("median revenue: %s", median_revenue)
 
 #Median Revenue
-cust_data[,na.exclude(median(revenue))]
+SD_revenue <- cust_data[,na.omit(sd(revenue))]
+sprintf("standard deviation of revenue: %s", SD_revenue)
 
 #Most Common Gender
-gender_count <- cust_data[,.(count = .N), by = "gender"]
+gender_count <- cust_data[,.(count = .N), by = "gender"][order(-count)]
 gender_count
-gender_count[,na.exclude(max(count))]
-
+sprintf("most common gender is %s", gender_count[1,1])
 ```
 
 
@@ -66,8 +69,13 @@ ggscatter(cust_data, x = "visits", y = "revenue",
 library(tidyverse)
 
 #creating a table containing only the NA values
-na_data <- cust_data %>% filter_all(any_vars(is.na(.)))
+missing_data <- cust_data %>% filter_all(any_vars(is.na(.)))
 
+#rows having missing data
+missing_data
+
+#Every column has missing data, and 7,200 rows have missing values.
+#We can impute the missing values by the mean of the column, and for columns having outliers we must ignore them before calculating the mean.
 ```
 
 
@@ -76,6 +84,8 @@ na_data <- cust_data %>% filter_all(any_vars(is.na(.)))
 
 #Mean transactions
 clean_cust_data <- na.omit(cust_data)
+
+#Calculating mean for transactions
 clean_cust_data[, round(mean(transactions))]
 
 #Assigning mean value to NA in transactions column
@@ -111,10 +121,12 @@ validation_data <- cust_data[rep(c(FALSE,TRUE), length = .N), ]   #logical vecto
 #Problem 7
 
 #Calculating mean revenue for trainig dataset
-training_data[,na.exclude(mean(revenue))]
+mean_train <- training_data[,na.exclude(mean(revenue))]
+sprintf("mean of training data: %s", mean_train)
 
 #Calculating mean revenue for validation dataset
-validation_data[,na.exclude(mean(revenue))]
+mean_val <- validation_data[,na.exclude(mean(revenue))]
+sprintf("mean of validation data: %s", mean_val)
 ```
 
 
