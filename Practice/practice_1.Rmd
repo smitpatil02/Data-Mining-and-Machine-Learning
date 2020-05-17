@@ -1,6 +1,11 @@
 ---
-title: "practice_1"
-output: pdf_document
+title: "Practice 1"
+author: "Smit Patil"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+  word_document: default
 ---
 
 ```{r}
@@ -31,7 +36,6 @@ sprintf("standard deviation of revenue: %s", SD_revenue)
 
 #Most Common Gender
 gender_count <- cust_data[,.(count = .N), by = "gender"][order(-count)]
-gender_count
 sprintf("most common gender is %s", gender_count[1,1])
 ```
 
@@ -71,11 +75,11 @@ library(tidyverse)
 #creating a table containing only the NA values
 missing_data <- cust_data %>% filter_all(any_vars(is.na(.)))
 
-#rows having missing data
-missing_data
+#rows having missing data is in datatabe "missing_data"
 
 #Every column has missing data, and 7,200 rows have missing values.
-#We can impute the missing values by the mean of the column, and for columns having outliers we must ignore them before calculating the mean.
+#We can impute the missing values by the mean of the column, and for columns having 
+#outliers we must ignore them before calculating the mean.
 ```
 
 
@@ -112,8 +116,12 @@ impute_gender[is.na(cust_data$gender)] <- "Male"
 #Problem 6
 
 #Spliting the data into a trainig and validation dataset 
-training_data <- cust_data[rep(c(TRUE,FALSE), length = .N), ]     #logical vector c(TRUE,FALSE) will only return 1st,3rd,5th...values
-validation_data <- cust_data[rep(c(FALSE,TRUE), length = .N), ]   #logical vector c(FALSE,TRUE) will only return 2nd,4th,6th...values
+
+training_data <- cust_data[rep(c(TRUE,FALSE), length = .N), ]     
+#logical vector c(TRUE,FALSE) will only return 1st,3rd,5th...values
+
+validation_data <- cust_data[rep(c(FALSE,TRUE), length = .N), ]   
+#logical vector c(FALSE,TRUE) will only return 2nd,4th,6th...values
 ```
 
 
