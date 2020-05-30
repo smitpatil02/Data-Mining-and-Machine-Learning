@@ -1,0 +1,64 @@
+---
+title: "Practice 3"
+output: pdf_document
+---
+
+```{r}
+prc <- read.csv("prostate_cancer.csv")
+str(prc)
+
+prc$diagnosis <- factor(prc$diagnosis_result, levels = c("B", "M"), labels = c("Benign", "Malignant"))
+
+normalize <- function(x) 
+  { 
+  return ((x - min(x)) / (max(x) - min(x))) 
+}
+
+prc_n <- as.data.frame(lapply(prc[3:10], normalize))
+summary(prc_n$radius)
+
+prc_train <- prc_n[1:65,]
+prc_test <- prc_n[66:100,]
+
+prc_train_labels <- prc[1:65, 2]
+prc_test_labels <- prc[66:100, 2]
+
+library(class)
+prc_test_pred <- knn(train = prc_train, test = prc_test,cl = prc_train_labels, k=10)
+
+library(gmodels)
+CrossTable(x = prc_test_labels, y = prc_test_pred, prop.chisq = FALSE)
+```
+
+```{r}
+library(lattice)
+library(ggplot2)
+library(data.table)
+library(dplyr)
+library(caret)
+
+training <- prc_train
+training$diagnosis_result <- as.factor(prc_train_labels)
+
+testing <- prc_test
+testing$diagnosis_result <- as.factor(prc_test_labels)
+  
+trctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
+set.seed(3333)
+knn_fit <- train(diagnosis_result ~., data = training, method = "knn",
+ trControl=trctrl,
+ preProcess = c("center", "scale"),
+ tuneLength = 10)
+
+knn_fit
+plot(knn_fit)
+
+test_pred <- predict(knn_fit, newdata = testing)
+test_pred
+
+confusionMatrix(test_pred, testing$diagnosis_result )
+prc_test_labels_1 <- as.factor(prc_test_labels)
+confusionMatrix(prc_test_pred, prc_test_labels_1)
+
+```
+
