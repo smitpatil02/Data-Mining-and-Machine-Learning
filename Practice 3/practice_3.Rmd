@@ -1,34 +1,59 @@
 ---
 title: "Practice 3"
-output: pdf_document
+author: "Smit Patil"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+  word_document: default
 ---
 
+1. Download the data set for the tutorial.
+
+2. Follow this tutorial on applying kNN to prostate cancer detection and implement all of the steps in an R Notebook. Make sure    to explain each step and what it does.
+
 ```{r}
+#Importing data 
 prc <- read.csv("prostate_cancer.csv")
 str(prc)
 
+#Creating a new column with values Benign, Malignant
 prc$diagnosis <- factor(prc$diagnosis_result, levels = c("B", "M"), labels = c("Benign", "Malignant"))
 
+#Creating a function for normalization
 normalize <- function(x) 
-  { 
+{ 
   return ((x - min(x)) / (max(x) - min(x))) 
 }
 
+#Converting the data into normalized form
 prc_n <- as.data.frame(lapply(prc[3:10], normalize))
 summary(prc_n$radius)
 
+#Splitting the data for training and testing
 prc_train <- prc_n[1:65,]
 prc_test <- prc_n[66:100,]
 
+#Getting labels for trainig and testing
 prc_train_labels <- prc[1:65, 2]
 prc_test_labels <- prc[66:100, 2]
 
+#Importing library "class" to perform kNN algorithm
 library(class)
 prc_test_pred <- knn(train = prc_train, test = prc_test,cl = prc_train_labels, k=10)
 
+#Importing library "gmodels" to display te resulting output in a CrossTable
 library(gmodels)
 CrossTable(x = prc_test_labels, y = prc_test_pred, prop.chisq = FALSE)
+
+#Calculating accuracy
+True_Negative <- 7
+True_Positive <- 16
+Accuracy <- ((True_Negative + True_Positive)/35)*100
+Accuracy
 ```
+
+3. Try another kNN implementation using caret package. Compare the accuracy of the two implementations.
 
 ```{r}
 library(lattice)
@@ -37,28 +62,38 @@ library(data.table)
 library(dplyr)
 library(caret)
 
+#Creating training dataset
 training <- prc_train
 training$diagnosis_result <- as.factor(prc_train_labels)
 
+#Creating testing dataset
 testing <- prc_test
 testing$diagnosis_result <- as.factor(prc_test_labels)
-  
+
+#Assigning train control values to variables  
 trctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
-set.seed(3333)
+set.seed(882)
+
+#Using train function from caret package to train the data
 knn_fit <- train(diagnosis_result ~., data = training, method = "knn",
  trControl=trctrl,
  preProcess = c("center", "scale"),
  tuneLength = 10)
 
+#Displaying accuracy of trained data and plotting the same
 knn_fit
 plot(knn_fit)
 
+#testing the the model with testing data
 test_pred <- predict(knn_fit, newdata = testing)
 test_pred
+```
 
+4. Try the confusionMatrix function from the caret package to determine the accuracy of both algorithms.
+
+```{r}
+#Using ConfusionMatrix function from caret package for both models
 confusionMatrix(test_pred, testing$diagnosis_result )
 prc_test_labels_1 <- as.factor(prc_test_labels)
 confusionMatrix(prc_test_pred, prc_test_labels_1)
-
 ```
-
