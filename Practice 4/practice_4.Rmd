@@ -1,0 +1,199 @@
+---
+title: "Practice 4"
+author: "Smit Patil"
+output: pdf_document
+---
+
+---Problem 1----
+
+Build an R Notebook of the SMS message filtering example in the textbook on pages 103 to 123 (data set). Show each step and add appropriate documentation. Note that the attached data set differs slightly from the one used on the book; the number of cases differ.
+
+```{r}
+#Step 1 & 2: Collecting, Exploring and Preparing and Data
+
+#Importing Data
+sms_data <- read.csv("da5030-spammsgdataset.csv")
+
+#Looking at the structure of the data
+str(sms_data)
+
+#Coverting the type column to factors
+sms_data$type <- as.factor(sms_data$type)
+
+#Checking whether the as.factor function is applied properly
+str(sms_data$type)
+
+#Creating a table of ham and spam
+table(sms_data$type)
+```
+
+```{r}
+#Data preparation – processing text data for analysis
+
+#Importing libararies to create corpus of the spam data
+library(NLP)
+library(tm)
+
+#Creating corpus and printing the results
+sms_corpus <- Corpus(VectorSource(sms_data$text))
+print(sms_corpus)
+
+#Inspecting the corpus data
+inspect(sms_corpus[1:3])
+
+#Removing Numbers, Stopwords, Punctuation and Whitespace using tm_map() function
+corpus_clean <- tm_map(sms_corpus, tolower)
+corpus_clean <- tm_map(corpus_clean, removeNumbers)
+corpus_clean <- tm_map(corpus_clean, removeWords, stopwords())
+corpus_clean <- tm_map(corpus_clean, removePunctuation)
+corpus_clean <- tm_map(corpus_clean, stripWhitespace)
+
+#Inspecting data after cleaning
+inspect(corpus_clean[1:3])
+
+#Splitting the sentences into words using DocumentTermMatrix() function
+sms_dtm <- DocumentTermMatrix(corpus_clean)
+```
+
+```{r}
+#Splitting the sms_data in 75:25 ratio and create train and test objects
+sms_train_data <- sms_data[1:4181, ]
+sms_test_data <- sms_data[4182:5574, ]
+
+#Similarly we split tokenized data into train and test objects
+sms_train_dtm <- sms_dtm[1:4181, ]
+sms_test_dtm <- sms_dtm[4182:5574, ]
+
+#Similarly we split corpus data into train and test objects
+sms_train_corpus <- corpus_clean[1:4181]
+sms_test_corpus <- corpus_clean[4182:5574]
+
+#Comparing the proportion of spam in the training and test data frames
+prop.table(table(sms_train_data$type))
+prop.table(table(sms_test_data$type))
+```
+
+```{r}
+#Visualizing text data – word clouds
+
+#Importing libraries to create wordcloud of the sms data
+library(RColorBrewer)
+library(wordcloud)
+library(stringr)
+
+#A wordcloud is created using the train corpus data, we set the minimum word frequency as 40
+wordcloud(corpus_clean, min.freq = 120, random.order = FALSE)
+
+#Now to visualize spam and ham of train data seperately we create a subset of them individually
+spam <- subset(sms_data, type == "spam")
+ham <- subset(sms_data, type == "ham")
+spam$text <- str_replace_all(spam$text,"[^[:graph:]]", " ")
+ham$text <- str_replace_all(ham$text,"[^[:graph:]]", " ") 
+
+#Visualization of spam and ham individually and we set the maximum words as 40 most common words
+wordcloud(spam$text, max.words = 40, scale = c(3,0.5))
+wordcloud(ham$text, max.words = 40, scale = c(3,0.5))
+```
+
+```{r}
+#Data preparation – creating indicator features for frequent words
+
+library(tm)
+
+#We find the word which have a frequency of 5 or more using findFreqTerms() function from tm library and observe it using head()
+sms_dict <- findFreqTerms(sms_train_dtm, 5)
+head(sms_dict)
+
+#We create a sparse matrix of both train and test corpus data which have frequent words
+sms_train <- DocumentTermMatrix(sms_train_corpus, list(dictionary = sms_dict))
+sms_test <- DocumentTermMatrix(sms_test_corpus, list(dictionary = sms_dict))
+
+#convert_counts functions is used to convert sparse matrix element numbers to a factor with Yes and No as 2 levels
+convert_counts <- function(x) 
+  {
+    x <- ifelse(x > 0, 1, 0)
+    x <- factor(x, levels = c(0, 1), labels = c("No", "Yes"))
+    return(x)
+  }
+
+#Using apply() function we convert the sparse matrix elements by calling the convert_counts() function
+sms_train <- apply(sms_train, MARGIN = 2, convert_counts)
+sms_test <- apply(sms_test, MARGIN = 2, convert_counts)
+```
+
+```{r}
+#Step 3 – training a model on the data
+
+#Importing library to use naiveBayes() function
+library(e1071)
+
+#First we build our model using naiveBayes() function from the e1071 library. We use the training data to train our model
+sms_classifier <- naiveBayes(sms_train, sms_train_data$type)
+```
+
+```{r}
+#Step 4 – evaluating model performance
+
+#Importing libraries to use predict() function for model evaluation
+library(gmodels)
+
+#Here for prediction we have used testing sms data along with the predict() function to evaluate the performance of the model
+sms_test_pred <- predict(sms_classifier, sms_test)
+
+#To calculate the accuracy of the model we generate a crosstable
+CrossTable(sms_test_pred, sms_test_data$type, prop.chisq = FALSE, prop.t = FALSE, dnn = c('predicted','actual'))
+```
+
+```{r}
+#Step 5 – improving model performance
+
+#We try to improve the performance of the model by using laplace = 1 in the naiveBayes() function. It helps in removing the words that appeared in zero spam or ham messages
+sms_classifier2 <- naiveBayes(sms_train, sms_train_data$type, laplace = 1)
+
+#We test the new improved model
+sms_test_pred2 <- predict(sms_classifier2, sms_test)
+
+#We use crosstable to observe the improved performance of the model. We can observe that number of ham messages predicted as spam have reduced and spam as ham have increased
+CrossTable(sms_test_pred2, sms_test_data$type, prop.chisq = FALSE, prop.t = FALSE, prop.r = FALSE, dnn = c('predicted', 'actual'))
+```
+
+---Problem 2---
+
+Install the requisite packages to execute the following code that classifies the built-in iris data using Naive Bayes. Build an R Notebook and explain in detail what each step does. Be sure to look up each function to understand how it is used.
+
+```{r}
+#Importing libraries to test Naive Bayes using klaR package
+library(MASS)
+library(klaR)
+
+#Loading the built-in iris dataset
+data(iris)
+
+#Calculating number of rows in iris dataset
+nrow(iris)
+
+#Summarising the iris dataset
+summary(iris)
+
+#Printing the header of the iris dataset
+head(iris)
+
+#Selecting every 5th number between 1 and 150 (i.e. 20% of the dataset)
+testidx <- which(1:length(iris[, 1]) %% 5 == 0)
+
+#Creating training and testing dataset
+iristrain <- iris[-testidx,]
+iristest <- iris[testidx,]
+
+#Applying the Naive Bayes algorithm from the klaR package, using the Species as the categorical variable
+nbmodel <- NaiveBayes(Species~., data=iristrain)
+
+#Check the accuracy
+#Prediction of the model is done using predict() function
+prediction <- predict(nbmodel, iristest[,-5])
+table(prediction$class, iristest[,5])
+
+#Printing the accuracy
+accuracy <- ((10+10+8)/(30))*100
+sprintf("The accuracy of the model is %s percent",accuracy)
+```
