@@ -1,0 +1,528 @@
+---
+title: "Practicum 1"
+author: "Smit Patil and Harsh Janyani"
+date: "6/3/2020"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+                                                     --- Question 1 ---
+Problem 1:
+
+Download the data set Glass Identification Database along with its explanation. Note that the data file does not contain header names; you may wish to add those. The description of each column can be found in the data set explanation. This assignment must be completed within an R Markdown Notebook.
+
+```{r}
+
+#Importing Data and adding column names using colnames function
+library(data.table)
+library(ggplot2)
+library(tidyverse)
+library(dplyr)
+
+#Importing CSV file
+glass.data <- read.csv("https://archive.ics.uci.edu/ml/machine-learning-databases/glass/glass.data", header = F)
+
+#Renaming column names i.e headers
+col_names <- c("Id","RI","Na","Mg","Al","Si","K","Ca","Ba","Fe","Type")
+colnames(glass.data) <- col_names
+
+```
+
+Problem 2:
+Explore the data set as you see fit and that allows you to get a sense of the data and get comfortable with it.
+
+```{r}
+#Exploring dataset
+head(glass.data)
+
+#Studying the data types used in the glass data and checking for NA's by using summary
+str(glass.data)
+summary(glass.data)
+
+```
+
+Problem 3:
+Create a histogram of column 2 (refractive index) and overlay a normal curve; visually determine whether the data is normally distributed. You may use the code from this tutorial.
+
+```{r}
+
+#Plotting Histogram of Refractive index with an overlaying normal curve. We make use of hist() function to plot a histogram.
+hist <- hist(glass.data$RI, breaks=10, col="steelBlue", xlab="Refractive Index", main="Histogram with Normal Curve")
+xfit <- seq(min(glass.data$RI), max(glass.data$RI), length=40)
+yfit <- dnorm(xfit, mea =mean(glass.data$RI), sd=sd(glass.data$RI))
+
+#Using lines() function we plot the normal curve
+yfit <- yfit*diff(hist$mids[1:2])*length(glass.data$RI)
+lines(xfit, yfit, col="black", lwd=2)
+
+#Based on visual understanding, we can see that the data is normally distributed.
+
+```
+
+Problem 4:
+Does the k-NN algorithm require normally distributed data or is it a non-parametric method? Comment on your findings. Answer this in a code block as a comment only.
+
+```{r}
+
+#k-NN algorithm is a non-parametric method, it does not make any assumptioms on the underlying data distributions. So it is not necessary to have normally distributed data
+
+```
+
+Problem 5:
+Identify any outliers for the columns using a z-score deviation approach, i.e., consider any values that are more than 2 standard deviations from the mean as outliers. Which are your outliers for each column? What would you do? Do not remove them the outliers.
+
+```{r}
+#We have used the z-score deviation approach to calculated the outliers. We calculate for each column by using a for loop.
+
+data <- glass.data
+for (i in 2:10)
+  {
+    mean_data <- mean(data[,i])
+    sd_data <- sd(data[,i])
+    zscore <- (data[,i]-mean_data)/sd_data
+    data[which(!(zscore>2)),i] = NA
+    print(col_names[i])
+    print(which(is.na(data[,i])==FALSE))
+    }
+data
+
+# We have printed the column names and the rows which are outliers for the same. Apart from that, we have also printed the values of the outliers in a separate dataframe.
+
+```
+
+Problem 6:
+After removing the ID column (column 1), normalize the numeric columns, except the last one (the glass type), using z-score standardization. The last column is the glass type and so it is excluded.
+
+```{r}
+
+#Normalization of whole data excluding first and last column which are Id and Type column. We put it in a new dataframe called glass.norm
+
+normalize <- function(x) 
+  { 
+    zscore <- (x - mean(x))/sd(x)
+  }
+glass.norm <- as.data.frame(lapply(glass.data[,2:10], normalize))
+
+#We summarize the data and observe whether the data has been normalized or not.
+summary(glass.norm)
+
+#Adding the last column back to the normalized data.
+glass.norm$Type <- glass.data$Type
+
+#Exploring normalized data
+head(glass.norm)
+
+```
+
+Problem 7:
+The data set is sorted, so creating a validation data set requires random selection of elements. Create a stratified sample where you randomly select 20% of each of the cases for each glass type to be part of the validation data set. The remaining cases will form the training data set.
+
+```{r}
+
+#Setting the seed value to 1 for random allocation of data
+set.seed(1)
+
+library(caret)
+library(dplyr)
+
+#Checking total number of rows for each case of type
+glass.norm %>% group_by(Type) %>% summarise(rows = length(Type))
+
+#Splitting data using createDataPartition function with a probabilty of 20% for validation data.
+index <- createDataPartition(glass.norm$Type, p = 0.2, list = FALSE)
+training_data <- glass.norm[-index,]
+validation_data <- glass.norm[index,]
+
+#Verifying validation data
+validation_data %>% group_by(Type) %>% summarise(rows = length(Type))
+
+#Creating label vector for training and validation data
+training_data_label <- training_data[,10]
+validation_data_label <- validation_data[,10]
+
+```
+
+Problem 8:
+Implement the k-NN algorithm in R (do not use an implementation of k-NN from a package) and use your algorithm with a k=5 to predict the glass type for the following two cases:
+RI = 1.51621 | 12.53 | 3.48 | 1.39 | 73.39 | 0.60 | 8.55 | 0.00 | Fe = 0.08
+RI = 1.5893 | 12.71 | 1.85 | 1.82 | 72.62 | 0.52 | 10.51 | 0.00 | Fe = 0.05
+Use the whole normalized data set for this; not just the training data set. Note that you need to normalize the values of the new cases the same way as you normalized the original data.
+
+```{r}
+
+#Implementation of kNN algorithm
+data.knn <- glass.norm
+data <- glass.data[-1]
+
+#Creating unknown case variables and assigning the values to it
+unknown1 <- as.data.frame(cbind(1.51621,12.53,3.48,1.39,73.39,0.6,8.55,0.00,0.08))
+unknown2 <- as.data.frame(cbind(1.5893,12.71,1.85,1.82,72.62,0.52,10.51,0.00,0.05))
+
+#Normalizing the new test cases using z-score method which was used earlier
+for (i in 1:9) 
+  {
+    unknown1[i] <- (unknown1[i]-mean(data[,i]))/sd(data[,i])
+    unknown2[i] <- (unknown2[i]-mean(data[,i]))/sd(data[,i])
+  }
+
+#Creating a distance function to calculate the euclidean distance
+distance <- function(x,y)
+  {
+    d <- 0
+    for (i in 1:length(x)) 
+      {
+        d <- d + (x[i]-y[i])^2
+      }
+    return(sqrt(d))
+  }
+
+#Neighbours function to a list of neighbours
+neighbours <- function(train,unknown)
+  {
+    m <- nrow(train)
+    k <- nrow(unknown)
+    ds <- numeric(m)
+    for (i in 1:m) {
+      p <- train[i,1:9]
+      q <- unknown[c(1:9)]
+      ds[i] <- distance(p,q)
+    }
+    return(unlist(ds))
+  }
+
+#k.closest function is used to select k nearest neighbours by using order function
+k.closest <- function(neighbours,k)
+  {
+    ordered.neighbours <- order(neighbours)
+    return(ordered.neighbours[1:k])
+  }
+
+#Mode function used to calculate mode
+Mode <- function(x)
+  {
+    ux <- unique(x)
+    ux[which.max(tabulate(match(x,ux)))]
+  }
+
+#kNN Implementation
+knn_new <- function(train,unknown,k)
+  {
+    neighbour <- neighbours(train, unknown)
+    closest_neighbours <- k.closest(neighbour, k)
+    return(Mode(data.knn$Type[closest_neighbours]))
+  }
+
+#Predicting values for both test cases with K=5 value
+test1 <- knn_new(data.knn,unknown1,5)
+sprintf("Predicted glass type for unknown case one is %s", test1)
+
+test2 <- knn_new(data.knn,unknown2,5)
+sprintf("Predicted glass type for unknown case two is %s", test2)
+
+```
+
+Problem 9:
+Apply the knn function from the class package with k=5 and redo the cases from Question (8). Compare your answers.
+
+```{r}
+
+#Implementation of kNN algorithm using Class package
+library(class)
+
+test_class1 <- knn(train = data.knn[,1:9],test = unknown1,cl = data.knn[,10],k=5)
+sprintf("Predicted glass type for unknown case one using class package is %s", test_class1)
+
+test_class2 <- knn(train = data.knn[,1:9],test = unknown2,cl = data.knn[,10],k=5)
+sprintf("Predicted glass type for unknown case two using class package is %s", test_class2)
+
+#After predicting both cases with two implementation we get same result with both implementation i.e Predicted value as 1 & 2.
+```
+
+Problem 10:
+Using your own implementation as well as the class package implementation of kNN, create a plot of k (x-axis) from 2 to 10 versus error rate (percentage of incorrect classifications) for both algorithms using ggplot.
+
+```{r}
+
+#Error plot
+#install.packages("ggplot2")
+library(ggplot2)
+
+#Calculating error percentage Using Class implementation
+train_error_pred <- rep(0,nrow(training_data))
+error <- data.frame(n=c(2:10),perc = rep(NA,9))
+
+for (i in 2:10) {
+  train_error_pred <- knn(training_data, validation_data, training_data_label, i)
+  error[i-1,2] <- (sum(training_data_label != train_error_pred)/nrow(training_data))*100
+}
+
+#Plotting Error percentage vs k-Values using ggplot function for class package
+ggplot(error, aes(x = error[,1], y = error[,2]))+geom_point()+geom_line(aes(color = "Class kNN"))+xlab("K Values")+ylab("Error Percent")+ggtitle("Error Percentage vs K value for kNN using Class")
+
+
+#Error using kNN.reg Implementation
+train_error_pred <- rep(0,nrow(training_data))
+error_new <- data.frame(n=c(2:10),perc = rep(NA,9))
+
+#Defining kNN.reg function as newKnn
+newKnn <- function(train,x,k)
+{
+  dist <- rep(NA, nrow(train))
+for (i in 1:nrow(train))
+  {
+  # Calculating euclidean distance
+  dist[i] <- sqrt(sum((train[i,1:9] - glass.norm[x, 1:9])^2))
+  }
+  o <- order(dist)
+  closest <- glass.norm$Type[o[1:k]]
+  return(Mode(closest))
+}
+
+val_rows <- as.integer(rownames(validation_data))
+for (i in 2:10){
+  for (j in 1:nrow(validation_data)){
+    train_error_pred[j] <- newKnn(training_data,val_rows[j],i)
+  }
+error_new[i-1,2] <- sum(training_data_label != train_error_pred) / nrow(training_data) * 100
+}
+
+#Plotting Error percentage vs k-Values using ggplot function for kNN.reg implementation
+ggplot(error_new, aes(x = error_new[,1], y = error_new[,2]))+geom_point()+geom_line(aes(color = "Custom kNN"))+xlab("K Values")+ylab("Error Percent")+ggtitle("Error Percentage vs K value for Custom kNN")
+
+```
+
+Problem 11:
+Produce a cross-table confusion matrix showing the accuracy of the classification using knn from the class package with k = 5.
+
+```{r}
+#Calling gmodels library to use crosstable function
+
+#install.packages("gmodels")
+#install.packages("caret")
+#install.packages("e1071")
+library(class)
+library(caret)
+library(e1071)
+library(gmodels)
+
+#Running knn function from class package for training and validation data with k = 5
+train_pred <- knn(train = training_data, test = validation_data, cl = training_data_label, k = 5)
+
+#Producing CrossTable and Confusion matrix for the classification
+CrossTable(x = validation_data_label, y = train_pred, prop.chisq = FALSE)
+confusionMatrix(train_pred,as.factor(validation_data_label))
+
+#We observe the accurary for model in the confusion matrix. Accuracy varies for different seed value. For seed = 1 we get accuracy as 88.8%, for seed = 101, we get accuracy of 95.6%
+
+```
+
+Problem 12:
+Download this (modified) version of the Glass data set containing missing values in column 4. Identify the missing values. Impute the missing values using your version of kNN from Problem 2 below using the other columns are predictor features.
+
+```{r}
+
+#Importing new modified data using read.csv function
+
+missing_glass_data <- read.csv("https://da5030.weebly.com/uploads/8/6/5/9/8659576/da5030.glass.data_with_missing_values.csv", stringsAsFactors = F, header = F)
+
+#Assigning header to the data
+colnames(missing_glass_data) <- col_names
+
+#Checking for NA's in the data. We observe that "Mg" column has 9 NA Values
+summary(missing_glass_data)
+
+#Removing Id column
+missing_glass_data <- missing_glass_data[-1]
+
+col_list <- c(1,2,4,5,6,7,8,9)
+
+normalized_data <- missing_glass_data 
+
+#Normalizing the new data with min-max normalization method
+for (i in col_list) 
+  {
+    normalized_data[,i] <- (missing_glass_data[,i]-min(missing_glass_data[,i]))/(max(missing_glass_data[,i])-min(missing_glass_data[,i]))
+  }
+
+#We create new forecast variable for each NA row. Since we have 9 NA rows we create 9 vectors
+forecast_data.1 <- normalized_data[20,c(1,2,4,5,6,7,8,9,10)]
+forecast_data.2 <- normalized_data[30,c(1,2,4,5,6,7,8,9,10)]
+forecast_data.3 <- normalized_data[95,c(1,2,4,5,6,7,8,9,10)]
+forecast_data.4 <- normalized_data[163,c(1,2,4,5,6,7,8,9,10)]
+forecast_data.5 <- normalized_data[169,c(1,2,4,5,6,7,8,9,10)]
+forecast_data.6 <- normalized_data[184,c(1,2,4,5,6,7,8,9,10)]
+forecast_data.7 <- normalized_data[194,c(1,2,4,5,6,7,8,9,10)]
+forecast_data.8 <- normalized_data[200,c(1,2,4,5,6,7,8,9,10)]
+forecast_data.9 <- normalized_data[208,c(1,2,4,5,6,7,8,9,10)]
+
+missing_data <- normalized_data[-c(20,30,95,163,169,184,194,200,208),]
+
+#Creating training and target data of the new modified data
+train_data_new <- missing_data[,c(1,2,4,5,6,7,8,9,10)]
+target_data_new <- missing_data[,3]
+
+#kNN.reg function from problem 2
+kNN.reg <- function(new_data, target_data, train_data, k){
+  weights <- numeric(k)
+  n <- nrow(train_data)
+  d <- rep(0,n)
+  for (i in 1:n) 
+  {
+    d[i] <- sqrt(sum((train_data[i,] - new_data)^2))
+  }
+  o <- order(d)
+  values <- target_data[o[1:k]]
+  weights <- c(3,2)
+  for (i in 3:k) 
+  {
+    weights[i] <- 1
+  }
+  sw <- values * weights
+  return(sum(sw)/sum(weights))
+}
+
+#Calling kNN.reg function from problem 2 to get predicted values
+impute_forecast.1 <- kNN.reg(forecast_data.1, target_data_new, train_data_new, 4)
+impute_forecast.2 <- kNN.reg(forecast_data.2, target_data_new, train_data_new, 4)
+impute_forecast.3 <- kNN.reg(forecast_data.3, target_data_new, train_data_new, 4)
+impute_forecast.4 <- kNN.reg(forecast_data.4, target_data_new, train_data_new, 4)
+impute_forecast.5 <- kNN.reg(forecast_data.5, target_data_new, train_data_new, 4)
+impute_forecast.6 <- kNN.reg(forecast_data.6, target_data_new, train_data_new, 4)
+impute_forecast.7 <- kNN.reg(forecast_data.7, target_data_new, train_data_new, 4)
+impute_forecast.8 <- kNN.reg(forecast_data.8, target_data_new, train_data_new, 4)
+impute_forecast.9 <- kNN.reg(forecast_data.9, target_data_new, train_data_new, 4)
+
+impute_forecast <- rbind(impute_forecast.1,impute_forecast.2,impute_forecast.3,impute_forecast.4,impute_forecast.5,impute_forecast.6,impute_forecast.7,impute_forecast.8,impute_forecast.9)
+
+#We can observe the imputed values in a dataframe for the Mg column
+rownames(impute_forecast) <- c(20,30,95,163,169,184,194,200,208)
+colnames(impute_forecast) <- "Mg"
+print("Imputed Values for the Mg Column:")
+impute_forecast
+
+#Appending the imputed values to main dataset which is missing_glass_data
+missing_glass_data[c(20,30,95,163,169,184,194,200,208),3] <- c(impute_forecast.1,impute_forecast.2,impute_forecast.3,impute_forecast.4,impute_forecast.5,impute_forecast.6,impute_forecast.7,impute_forecast.8,impute_forecast.9)
+
+#Verifying whether NA values are imputed or not
+summary(missing_glass_data)
+
+```
+
+                                                      --- Question 2 ---
+Problem 1:
+Investigate this data set of home prices in King County (USA).
+
+```{r}
+
+#Importing house data using read.csv
+house.data <- read.csv("D:\\Northeastern\\DM & ML\\Practicum 1\\kc_house_data.csv", stringsAsFactors = F, header = T)
+
+#Exploring house data and studying the data types present in it
+head(house.data)
+str(house.data)
+summary(house.data)
+
+```
+
+Problem 2:
+Save the price column in a separate vector/dataframe called target_data. Move all of the columns except the ID, date, price, yr_renovated, zipcode, lat, long, sqft_living15, and sqft_lot15 columns into a new data frame called train_data.
+
+```{r}
+
+#Create Target Data which contains price column
+target_data <- house.data$price
+head(target_data)
+
+#Moving other columns to train_data which are used for training the model
+train_data <- house.data[,4:15]
+head(train_data)
+```
+
+Problem 3:
+Normalize all of the columns (except the boolean columns waterfront and view) using min-max normalization.
+
+```{r}
+
+#Normalization of Data using min-max normalization method. Here we exclude waterfront and view columns in the col_list
+col_list_new <- c(1,2,3,4,5,8,9,10,11,12)
+
+train_data_normalized <- train_data 
+
+for (i in col_list_new) 
+  {
+    train_data_normalized[,i] <- (train_data[,i]-min(train_data[,i]))/(max(train_data[,i])-min(train_data[,i]))
+  }
+
+#Verifying whether data is normalized or not
+head(train_data_normalized)
+summary(train_data_normalized)
+
+```
+
+Problem 4:
+Build a function called knn.reg that implements a regression version of kNN that averages the prices of the k nearest neighbors using a weighted average where the weight is 3 for the closest neighbor, 2 for the second closest and 1 for the remaining neighbors (recall that a weighted average requires that you divide the sum product of the weight and values by the sum of the weights).
+
+It must use the following signature:
+
+knn.reg (new_data, target_data, train_data, k)
+
+where new_data is a data frame with new cases, target_data is a data frame with a single column of prices from (2), train_data is a data frame with the features from (2) that correspond to a price in target_data, and k is the number of nearest neighbors to consider. It must return the predicted price.
+
+```{r}
+
+#Building kNN.reg Function
+kNN.reg <- function(new_data, target_data, train_data, k){
+  weights <- numeric(k)
+  n <- nrow(train_data)
+  d <- rep(0,n)
+  
+  #Calculating euclidean distance
+  for (i in 1:n) 
+  {
+    d[i] <- sqrt(sum((train_data[i,] - new_data)^2))
+  }
+  
+  #Ordering neighbours
+  o <- order(d)
+  
+  #Adding k nearest neighbours to values
+  values <- target_data[o[1:k]]
+  
+  #Creating a weights variable which contains values 3,2,1 for 1st nearest, 2nd nearest, and other neighbours respectively.
+  weights <- c(3,2)
+  for (i in 3:k) 
+  {
+    weights[i] <- 1
+  }
+  
+  #Calculating weighted average forecast and returning the value
+  sw <- values * weights
+  return(sum(sw)/sum(weights))
+}
+
+```
+
+Problem 5:
+Forecast the price of this new home using your regression kNN using k = 4:
+bedrooms = 4 | bathrooms = 3 | sqft_living = 4852 | sqft_lot = 10244 | floors = 3 | waterfront = 0 | view = 1 | condition = 3 | grade = 11
+sqft_above = 1960 | sqft_basement = 820 | yr_built = 1978
+
+```{r}
+
+#Storing new test case in new_data vector variable
+
+new_data <- c(4,3,4852,10244,3,0,1,3,11,1960,820,1978)
+
+#Normalizing new_data using min-max normalization method
+for (i in col_list_new) 
+  {
+    new_data[i] <- (new_data[i]-min(train_data[,i]))/(max(train_data[,i])-min(train_data[,i]))
+  }
+
+#Calling the kNN.reg function to forecast the new_data and printing the value
+forecast <- kNN.reg(new_data,target_data,train_data_normalized,4)
+sprintf("Forecast Price for new test case is %s", forecast)
+
+```
+
