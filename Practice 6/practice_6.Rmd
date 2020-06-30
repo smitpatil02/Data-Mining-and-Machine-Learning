@@ -1,0 +1,160 @@
+---
+title: "Practice 5"
+author: "Smit Patil"
+date: "6/30/2020"
+output: pdf_document
+---
+
+```{r}
+library(psych)
+student_mat = read.csv("student-mat.csv",sep=";",header=TRUE)
+
+head(student_mat)
+str(student_mat)
+
+pairs.panels(student_mat[c("age", "absences", "G1", "G2", "G3")])
+
+
+```
+
+```{r}
+summary(student_mat)
+
+selected_features <- student_mat
+
+selected_features$school <- as.factor(selected_features$school)
+selected_features$sex <- as.factor(selected_features$sex)
+selected_features$address <- as.factor(selected_features$address)
+selected_features$famsize <- as.factor(selected_features$famsize)
+selected_features$Pstatus <- as.factor(selected_features$Pstatus)
+selected_features$schoolsup <- as.factor(selected_features$schoolsup)
+selected_features$famsup <- as.factor(selected_features$famsup)
+selected_features$paid <- as.factor(selected_features$paid)
+selected_features$activities  <- as.factor(selected_features$activities )
+selected_features$nursery  <- as.factor(selected_features$nursery )
+selected_features$higher  <- as.factor(selected_features$higher )
+selected_features$internet  <- as.factor(selected_features$internet )
+selected_features$romantic  <- as.factor(selected_features$romantic )
+
+
+pred <- lm(G3~school+sex+age+famsize+Mjob+Fjob+studytime+activities+famrel+absences+G1+G2, data = selected_features)
+
+#pred <- lm(G3~school+sex+age+address+famsize+Pstatus+Medu+Fedu+Mjob+Fjob+reason+guardian+traveltime+studytime+failures+schoolsup+famsup+paid+activities+nursery+higher+internet+romantic+famrel+freetime+goout+Dalc+Walc+health+absences+G1+G2, data = selected_features)
+
+summary(pred)
+```
+
+```{r}
+step(pred, direction = "backward")
+
+new_pred <- lm(G3~age+activities+famrel+absences+G1+G2, data = selected_features)
+
+summary(new_pred)
+```
+
+```{r}
+rse <- 1.875
+
+sample_student <- student_mat[302,]
+
+sample_student
+
+pred.sample_student <- predict(new_pred, sample_student)
+
+lower.ci <- unname(pred.sample_student - (1.96 * rse))
+lower.ci
+
+upper.ci <- unname(pred.sample_student + (1.96 * rse))
+upper.ci
+```
+
+```{r}
+model <- lm(G3~., data = student_mat)
+rmse <- sqrt(mean(model$residuals^2))
+rmse
+```
+
+```{r}
+student_mat_PF <- student_mat
+student_mat_PF$PF <- ifelse(student_mat_PF$G3 < 10, "F", "P")
+student_mat_PF$PF <- as.factor(student_mat_PF$PF)
+head(student_mat_PF)
+table(student_mat_PF$PF)
+```
+
+```{r}
+pred.glm <- glm(PF~school+sex+age+famsize+Mjob+Fjob+studytime+activities+famrel+absences+G1+G2, data=student_mat_PF, family="binomial")
+summary(pred.glm)
+
+step(pred.glm, direction="backward")
+new_pred.glm <- glm(PF~age+activities+famrel+absences+G1+G2, data=student_mat_PF, family="binomial")
+summary(new_pred.glm)
+```
+
+```{r}
+pred.glm <- glm(PF~school+sex+age+famsize+Mjob+Fjob+studytime+activities+famrel+absences+G1+G2, data=student_mat_PF, family="binomial")
+new_pred.glm <- glm(PF~age+activities+famrel+absences+G1+G2, data=student_mat_PF, family="binomial")
+```
+
+```{r}
+library(rpart)
+library(rpart.plot)
+library(RWeka)
+library(partykit)
+
+wine <- read.csv("https://da5030.weebly.com/uploads/8/6/5/9/8659576/whitewines.csv")
+
+str(wine)
+
+hist(wine$quality)
+
+wine_train <- wine[1:3750, ]
+wine_test <- wine[3751:4898, ]
+
+m.rpart <- rpart(quality ~ ., data = wine_train)
+m.rpart
+
+rpart.plot(m.rpart, digits = 3)
+
+rpart.plot(m.rpart, digits = 4, fallen.leaves = TRUE, type = 3, extra = 101)
+
+p.rpart <- predict(m.rpart, wine_test)
+
+summary(p.rpart)
+summary(wine_test$quality)
+
+cor(p.rpart, wine_test$quality)
+
+MAE <- function(actual, predicted) 
+  {
+    mean(abs(actual - predicted))
+  }
+
+MAE(p.rpart, wine_test$quality)
+mean(wine_train$quality)
+MAE(5.87, wine_test$quality)
+
+m.m5p <- M5P(quality ~ ., data = wine_train)
+m.m5p
+
+summary(m.m5p)
+
+p.m5p <- predict(m.m5p, wine_test)
+summary(p.m5p)
+
+cor(p.m5p, wine_test$quality)
+
+MAE(wine_test$quality, p.m5p)
+
+```
+
+```{r}
+RMSE <- function(actual, predicted) 
+  {
+    return(sqrt(sum(actual-predicted)^2/length(actual)))
+  }
+
+RMSE(wine_test$quality, p.m5p)
+
+```
+
