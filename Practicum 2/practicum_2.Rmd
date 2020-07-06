@@ -1,0 +1,116 @@
+---
+title: "Practicum 2"
+author: "Smit Patil"
+date: "7/2/2020"
+output: pdf_document
+---
+
+```{r}
+library(tidyverse)
+adult.data <- read.csv("adult.data", header = F)
+
+adult.names <- c("age","workclass","fnlwgt","education","education_num","maritial_status","occupation","relationship","race","sex","capital_gain","capital_loss","hours_per_week","native_country","salary")
+
+colnames(adult.data) <- adult.names
+```
+
+```{r}
+library(arules)
+head(adult.data)
+str(adult.data)
+summary(adult.data)
+
+adult.data[adult.data == " ?"] <- NA
+
+colnames(adult.data)[colSums(is.na(adult.data)) > 0]
+
+common.workclass <- names(which.max(table(adult.data$workclass)))
+adult.data$workclass <- adult.data$workclass %>% replace_na(common.workclass)
+
+common.occupation <- names(which.max(table(adult.data$occupation)))
+adult.data$occupation <- adult.data$occupation %>% replace_na(common.occupation)
+
+common.native_country <- names(which.max(table(adult.data$native_country)))
+adult.data$native_country <- adult.data$native_country %>% replace_na(common.native_country)
+
+anyNA(adult.data)
+
+adult.data$age <- discretize(adult.data$age, breaks = 4)
+adult.data$sex <- as.factor(adult.data$sex)
+adult.data$salary <- as.factor(adult.data$salary)
+```
+
+```{r}
+set.seed(1)
+sample <- sample.int(n = nrow(adult.data), size = floor(.25*nrow(adult.data)), replace = F)
+testing <- adult.data[sample,]
+training <- adult.data[-sample,] 
+```
+
+```{r}
+library(MASS)
+library(klaR)
+library(naivebayes)
+library(e1071)
+library(gmodels)
+library(caret)
+
+adult.data$sex <- as.factor(adult.data$sex)
+adult.data$salary <- as.factor(adult.data$salary)
+
+features.train <- training[c("age","education","workclass","sex","race","native_country","salary")]
+features.test <- testing[c("age","education","workclass","sex","race","native_country","salary")]
+
+#
+nb.klaR <- NaiveBayes(salary~., data = features.train)
+
+klaR.prediction <- predict(nb.klaR, features.test[,-7])
+table(klaR.prediction$class, features.test[,7])
+
+accuracy.klaR <- ((5805+702)/(8140))*100
+sprintf("The accuracy of the Naive Bayes model using klaR package is %s percent",accuracy.klaR)
+
+#
+nb.naivebayes <- naive_bayes(salary~., features.train)
+
+naivebayes.prediction <- predict(nb.naivebayes, features.test[,-7])
+table(naivebayes.prediction, features.test[,7])
+
+accuracy.naivebayes <- ((5623+885)/(8140))*100
+sprintf("The accuracy of the Naive Bayes model using naivebayes package is %s percent",accuracy.naivebayes)
+
+#
+nb.e1071 <- naiveBayes(features.train, features.train$salary)
+
+e1071.prediction <- predict(nb.e1071, features.test)
+CrossTable(e1071.prediction, features.test$salary, prop.chisq = FALSE, prop.t = FALSE, dnn = c('predicted','actual'))
+
+accuracy.e1071 <- ((6191+1947)/(8140))*100
+sprintf("The accuracy of the Naive Bayes model using naivebayes package is %s percent",accuracy.e1071)
+
+#The majority vote
+pred_majority <- as.factor(ifelse(klaR.prediction=='Y' & naivebayes.prediction=='Y','Y',ifelse(klaR.prediction=='Y' & e1071.prediction=='Y','Y',ifelse(naivebayes.prediction=='Y' & e1071.prediction=='Y','Y','N'))))
+table(pred_majority)
+```
+
+```{r}
+lr.data <- adult.data[c("age","education","workclass","sex","race","native_country","salary")]
+
+glm.lr <- glm(salary~., data = lr.data, family = binomial)
+
+lr.prediction <- round(predict(glm.lr, newdata = lr.data, type="response"),0)
+lr.data$predict.lr <- unname(predict.lr)
+lr.data$salary <- as.numeric(ifelse(lr.data$salary == " <=50K", 0, 1))
+confusionMatrix(table(lr.data$predict.lr, lr.data$salary))
+```
+
+```{r}
+prediction_labels <- features.test$salary
+
+confusionMatrix(klaR.prediction$class, prediction_labels)
+
+confusionMatrix(naivebayes.prediction, prediction_labels)
+
+confusionMatrix(e1071.prediction, prediction_labels)
+```
+
