@@ -1,160 +1,212 @@
 ---
-title: "Practice 5"
+title: "Practice 6"
 author: "Smit Patil"
 date: "6/30/2020"
 output: pdf_document
 ---
 
 ```{r}
+#Importing Libraries
 library(psych)
-student_mat = read.csv("student-mat.csv",sep=";",header=TRUE)
 
+#Importing student data
+student_mat <- read.csv("student-mat.csv",sep=";",header=TRUE)
+
+#Viewing at the head and the structure of the data
 head(student_mat)
 str(student_mat)
 
+#Plotting the histogram and the correlation between different features
 pairs.panels(student_mat[c("age", "absences", "G1", "G2", "G3")])
-
-
 ```
 
 ```{r}
+#Summaring the student data
 summary(student_mat)
 
-selected_features <- student_mat
+#Selcting relevant features
+selected_features <- student_mat[c("school", "sex", "age", "famsize", "Mjob", "Fjob", "studytime", "activities", "famrel", "absences", "G1", "G2", "G3")]
 
+#Creating factors of v=binary values
 selected_features$school <- as.factor(selected_features$school)
 selected_features$sex <- as.factor(selected_features$sex)
-selected_features$address <- as.factor(selected_features$address)
 selected_features$famsize <- as.factor(selected_features$famsize)
-selected_features$Pstatus <- as.factor(selected_features$Pstatus)
-selected_features$schoolsup <- as.factor(selected_features$schoolsup)
-selected_features$famsup <- as.factor(selected_features$famsup)
-selected_features$paid <- as.factor(selected_features$paid)
-selected_features$activities  <- as.factor(selected_features$activities )
-selected_features$nursery  <- as.factor(selected_features$nursery )
-selected_features$higher  <- as.factor(selected_features$higher )
-selected_features$internet  <- as.factor(selected_features$internet )
-selected_features$romantic  <- as.factor(selected_features$romantic )
+selected_features$activities  <- as.factor(selected_features$activit)
 
-
+#Running multiple regression for selected features
 pred <- lm(G3~school+sex+age+famsize+Mjob+Fjob+studytime+activities+famrel+absences+G1+G2, data = selected_features)
 
-#pred <- lm(G3~school+sex+age+address+famsize+Pstatus+Medu+Fedu+Mjob+Fjob+reason+guardian+traveltime+studytime+failures+schoolsup+famsup+paid+activities+nursery+higher+internet+romantic+famrel+freetime+goout+Dalc+Walc+health+absences+G1+G2, data = selected_features)
-
+#We observed the R-Squared values as 0.8388 and the p value is quite low
 summary(pred)
 ```
 
 ```{r}
+#Using backward elimination method to remove irrelevant features
 step(pred, direction = "backward")
 
+#Running multiple regression for the newly selected features
 new_pred <- lm(G3~age+activities+famrel+absences+G1+G2, data = selected_features)
 
+#After removing the irrelevant feature the R-Squared value is 0.8351, which also as similar to the previous one
 summary(new_pred)
 ```
 
 ```{r}
+#Taking the Residual standard error of the above model
 rse <- 1.875
 
+#Choosing the random student from the dataset
 sample_student <- student_mat[302,]
-
 sample_student
 
+#Predicting the output for the test data
 pred.sample_student <- predict(new_pred, sample_student)
 
+#Calculating the lower boundary for the 95% confidence interval
 lower.ci <- unname(pred.sample_student - (1.96 * rse))
 lower.ci
 
+#Calculating the upper boundary for the 95% confidence interval
 upper.ci <- unname(pred.sample_student + (1.96 * rse))
 upper.ci
 ```
 
 ```{r}
+#Calculating rmse for the multi-regression model
 model <- lm(G3~., data = student_mat)
+
+#Using residual function for getting the error values of the model
 rmse <- sqrt(mean(model$residuals^2))
 rmse
 ```
 
 ```{r}
+#Creating a new column PASS/FAIL (P/F) for the student data
 student_mat_PF <- student_mat
 student_mat_PF$PF <- ifelse(student_mat_PF$G3 < 10, "F", "P")
+
+#Converting the categorical variable to dummy code
 student_mat_PF$PF <- as.factor(student_mat_PF$PF)
+
+#Viewing at the head of the data
 head(student_mat_PF)
+
+#Calculating the PASS and FAIL values 
 table(student_mat_PF$PF)
 ```
 
 ```{r}
+#Testing binomial logistic regression for selected features
 pred.glm <- glm(PF~school+sex+age+famsize+Mjob+Fjob+studytime+activities+famrel+absences+G1+G2, data=student_mat_PF, family="binomial")
+
+#We observe the AIC value usinf summary fuction
 summary(pred.glm)
 
+#Using backward elimination method to remove non-significant features
 step(pred.glm, direction="backward")
+
+#Prediction of new features
 new_pred.glm <- glm(PF~age+activities+famrel+absences+G1+G2, data=student_mat_PF, family="binomial")
+
+#Looking at the AIC value of the new prediction
 summary(new_pred.glm)
 ```
 
 ```{r}
-pred.glm <- glm(PF~school+sex+age+famsize+Mjob+Fjob+studytime+activities+famrel+absences+G1+G2, data=student_mat_PF, family="binomial")
-new_pred.glm <- glm(PF~age+activities+famrel+absences+G1+G2, data=student_mat_PF, family="binomial")
+#Importing libraries for the confusionMatrix
+library(caret)
+library(e1071)
+
+#Calculating accuracy of the model usinf confusionMatrix
+predict.glm <- round(predict(new_pred.glm, newdata= student_mat_PF, type="response"),0)
+student_mat_PF$predict.glm <- unname(predict.glm)
+student_mat_PF$PF <- as.numeric(ifelse(student_mat_PF$PF == "F", 0, 1))
+confusionMatrix(table(student_mat_PF$predict.glm, student_mat_PF$PF))
 ```
 
 ```{r}
+#Installing packages
 library(rpart)
 library(rpart.plot)
 library(RWeka)
 library(partykit)
 
-wine <- read.csv("https://da5030.weebly.com/uploads/8/6/5/9/8659576/whitewines.csv")
+#Importing wine data
+wine <- read.csv("whitewines.csv")
 
+#Viewing at the structure of the wine data
 str(wine)
 
+#Plotting histogram of the wine data
 hist(wine$quality)
 
+#Creating training and testing dataset of the wine data
 wine_train <- wine[1:3750, ]
 wine_test <- wine[3751:4898, ]
 
+#Creating a classification model using rpart
 m.rpart <- rpart(quality ~ ., data = wine_train)
 m.rpart
 
+#Plotting the classification tree using the rplot function
 rpart.plot(m.rpart, digits = 3)
 
 rpart.plot(m.rpart, digits = 4, fallen.leaves = TRUE, type = 3, extra = 101)
 
+#Evaluation of model based on testing data
 p.rpart <- predict(m.rpart, wine_test)
 
+#Summarising the predicted values from the model
 summary(p.rpart)
+
+#SUmmarising the test data nd quality column
 summary(wine_test$quality)
 
+#Comparing the actual and predicted values
 cor(p.rpart, wine_test$quality)
 
+#Creatin a function to calculate Mean Absolute Error(MAE)
 MAE <- function(actual, predicted) 
   {
     mean(abs(actual - predicted))
   }
 
+#Claculating the MAE of the model
 MAE(p.rpart, wine_test$quality)
+
+#Calculating the mean of quality ratings
 mean(wine_train$quality)
+
+#Calculating the MAE for the mean value
 MAE(5.87, wine_test$quality)
 
+#Using the M5P to improve the model performance
 m.m5p <- M5P(quality ~ ., data = wine_train)
 m.m5p
 
+#SUmmarising the values generated from the M5P
 summary(m.m5p)
 
+#Evaluating the model based on testing data
 p.m5p <- predict(m.m5p, wine_test)
+
+#Summarising the predicted values from the model
 summary(p.m5p)
 
+#Comparing the actual and predicted values
 cor(p.m5p, wine_test$quality)
 
+#Claculating the MAE of the model
 MAE(wine_test$quality, p.m5p)
-
 ```
 
 ```{r}
+#Creating a function to calculate the Root Mean Squared Error(RMSE)
 RMSE <- function(actual, predicted) 
   {
     return(sqrt(sum(actual-predicted)^2/length(actual)))
   }
 
+#Calculating the RMSE
 RMSE(wine_test$quality, p.m5p)
-
 ```
-
