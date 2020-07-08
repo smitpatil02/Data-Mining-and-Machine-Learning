@@ -5,28 +5,45 @@ date: "7/2/2020"
 output: pdf_document
 ---
 
+                                         ---Problem 1---
+
+1. Download the data set Census Income Data for Adults along with its explanation. Note that the data file does not contain header names; you may wish to add those. The description of each column can be found in the data set explanation. 
+
 ```{r}
-library(tidyverse)
+#Importing adult data
 adult_data <- read.csv("adult.data", header = F)
 
+#Creating data frame to add column names to the adult data
 adult.names <- c("age","workclass","fnlwgt","education","education_num","maritial_status","occupation","relationship","race","sex","capital_gain","capital_loss","hours_per_week","native_country","salary")
 
+#Adding names to the adult data
 colnames(adult_data) <- adult.names
 ```
 
+2. Explore the data set as you see fit and that allows you to get a sense of the data and get comfortable with it. 
+
 ```{r}
+#Importing Libraries to perform data cleaning
+library(tidyverse)
 library(arules)
 
+#Creating a copy of the adult data
 adult.data <- adult_data
 
+#Looking at the head and the structure of the data
 head(adult.data)
 str(adult.data)
+
+#Summarising the adult data
 summary(adult.data)
 
+#We see that there are unwanted characters in the data, so we replace thode with NA
 adult.data[adult.data == " ?"] <- NA
 
+#Finding the column names which have  NA values present in them
 colnames(adult.data)[colSums(is.na(adult.data)) > 0]
 
+#Replacing the NA values in the columns with the most common value 
 common.workclass <- names(which.max(table(adult.data$workclass)))
 adult.data$workclass <- adult.data$workclass %>% replace_na(common.workclass)
 
@@ -36,46 +53,57 @@ adult.data$occupation <- adult.data$occupation %>% replace_na(common.occupation)
 common.native_country <- names(which.max(table(adult.data$native_country)))
 adult.data$native_country <- adult.data$native_country %>% replace_na(common.native_country)
 
+#Verifying wheather all the NA values are replaced
 anyNA(adult.data)
 
+#Dicretizing the age column in the adult data into 4 discrete bins, so that each bin reprensents 25% of the age range
 adult.data$age <- discretize(adult.data$age, breaks = 4)
+
+#Creating factors for sex and salary group in the adult dataset
 adult.data$sex <- as.factor(adult.data$sex)
 adult.data$salary <- as.factor(adult.data$salary)
 ```
 
+3. Split the data set 75/25 so you retain 25% for testing using random sampling.
+
 ```{r}
+#Importing libraries to randomly split the dataset
 library(caret)
+
 set.seed(1)
+
+#Spliting the dataset using createDataPartition() function, so that the data is samped in equal distribution based on the salary group
 adult.sample <- createDataPartition(adult.data$salary, p = 0.25, list = FALSE, times = 1)
+
+#Assigining 25% of the data for testing and the remaining 75% for training
 adult.testing <- adult.data[adult.sample,]
 adult.training <- adult.data[-adult.sample,] 
 ```
 
+4. Using the Naive Bayes Classification algorithm from the KlaR, naivebayes, and e1071 packages, build an ensemble classifier that predicts whether an individual earns more than or less than US$50,000. Only use the features age, education, workclass, sex, race, and native-country. Ignore any other features in your model. You need to transform continuous variables into categorical variables by binning (use equal size bins from in to max). Note that some packages might not work with your current version of R and may need to be downgraded.
+
 ```{r}
+#Importing Libraries to perform Naive Bayes using KlaR, naivebayes, and e1071 packages
 library(MASS)
 library(klaR)
 library(naivebayes)
 library(e1071)
 library(gmodels)
 
+#Selecting limited features for training and testing Naive Bayes
 features.train <- adult.training[c("age","education","workclass","sex","race","native_country","salary")]
 features.test <- adult.testing[c("age","education","workclass","sex","race","native_country","salary")]
 
-#
+#Training Naive Bayes model using the klaR package
 nb.klaR <- NaiveBayes(salary~., data = features.train)
 
-
-
-#
+#Training Naive Bayes model using the naivebayes package
 nb.naivebayes <- naive_bayes(salary~., features.train)
 
-
-
-#
+#Training Naive Bayes model using the e1071 package
 nb.e1071 <- naiveBayes(salary~., data = features.train)
 
-
-
+#Creating an ensemble model of all the three packages i.e. KlaR, naivebayes, and e1071
 ensemble.model_1 <- function(data)
   {
     klaR.prediction <- predict(nb.klaR, data)[[1]]
@@ -90,28 +118,31 @@ ensemble.model_1 <- function(data)
     return(nb.ensemble_1)
  }
 
+#Predicting the salary group of the test data with help of the ensemble model
 ensemble.prediction_1 <- ensemble.model_1(features.test[,-7])
 
+#Printing the CrossTable to display the predictions from the actual value
 CrossTable(ensemble.prediction_1$Majority_Vote, features.test$salary, dnn = c('predicted','actual'))
 
+#Calculating the accuracy of the ensemble model with the help the CrossTable
 accuracy.ensemble_1 <- ((5623+885)/(8140))*100
 sprintf("The accuracy of the Naive Bayes model using ensemble model is %s percent", accuracy.ensemble_1)
 ```
 
-```{r}
+5. Create a full logistic regression model of the same features as in (4) (i.e., do not eliminate any features regardless of p-value). Be sure to either use dummy coding for categorical features or convert them to factor variables and ensure that the glm function does the dummy coding. Add the logistic regression model to the ensemble built in (4).
 
+```{r}
+#Creatin a Logistic Regression model for the same training data
 glm.lr <- glm(salary~., data = features.train, family = binomial)
 
+#Predicting the Salary group based on the above Logistic Regression model
 lr.prediction <- ifelse(predict(glm.lr, newdata = features.test, type = "response") < 0.5, " <=50K"," >50K")
-CrossTable(lr.prediction, features.test$salary, dnn = c('predicted','actual'))
-
-accuracy.lr <- ((5776+806)/(8140))*100
-sprintf("The accuracy of the Naive Bayes model using logistic regression is %s percent", accuracy.lr)
-
-
 ```
 
+6. Add the logistic regression model to the ensemble built in (4).
+
 ```{r}
+#Adding Logistic Regression to the above ensemble model
 ensemble.model_2 <- function(data)
   {
     klaR.prediction <- predict(nb.klaR, data)[[1]]
@@ -130,182 +161,271 @@ ensemble.model_2 <- function(data)
     return(nb.ensemble_2)   
   }
 
+#Predicting the salary group of the test data with help of the new ensemble model
 ensemble.prediction_2 <- ensemble.model_2(features.test[,-7])
 
+#Printing the CrossTable to display the predictions from the actual value of the new ensemble model
 CrossTable(ensemble.prediction_2$Majority_Vote, features.test$salary, dnn = c('predicted','actual'))
 
+#Calculating the accuracy of the new ensemble model with the help the CrossTable
 accuracy.ensemble_1 <- ((5741+831)/(8140))*100
 sprintf("The accuracy of the Naive Bayes model using ensemble model is %s percent", accuracy.ensemble_1)
 ```
 
+7. Using the ensemble model from (6), predict whether a 35-year-old white female adult who is a local government worker with a doctorate who immigrated from Portugal earns more or less than US$50,000.
+
 ```{r}
+#Creating a new data frame for the new adult for predection
 new_adult <- data.frame(35, " Doctorate", " Local-gov", " Female", " White", " Portugal", NA)
+
+#Creating a data frame and adding the column names to the new adult data
 data.col_names <- c("age","education","workclass","sex","race","native_country", "salary")
 colnames(new_adult) <- data.col_names
 
+#Creating another sample of the adult data to perform factor operation on the new adult data
 new_adult.data <- adult_data[c("age","education","workclass","sex","race","native_country", "salary")]
 
+#Binding the row of the new adult data with the original adult data
 new_adult.data <- rbind(new_adult, new_adult.data)
 
+#Dicretizing the age column in the adult data into 4 discrete bins, so that each bin reprensents 25% of the age range
 new_adult.data$age <- discretize(new_adult.data$age, breaks = 4)
+
+#Creating factors for sex and salary group in the adult dataset
 new_adult.data$sex <- as.factor(new_adult.data$sex)
 new_adult.data$salary <- as.factor(new_adult.data$salary)
 
+#Retiving the new adult data after performing the factor opearions
 new_testing.data <- new_adult.data[1,]
 
+#Predicting the salary range for the new adult using the ensemle model
 ensemble.prediction_3 <- ensemble.model_2(new_testing.data[,-7])
-sprintf("The predicted salary range for the given data using ensemble model is %s", ensemble.prediction_3$Majority_Vote)
+sprintf("The predicted salary range for the given adult data using ensemble model is %s", ensemble.prediction_3$Majority_Vote)
 ```
 
+8. Calculate accuracy and prepare confusion matrices for all three Bayes implementations (KlaR, naivebayes, e1071) and the logistic regression model. Compare the implementations and comment on differences. Be sure to use the same training data set for all three. The results should be the same but they may differ if the different implementations deal differently with LaPalace Estimators.
+
 ```{r}
+#Creating prediction lables to implement confusionMatrix
 prediction_labels <- features.test$salary
 
-#
+#klar Package
+#Predicting the Salary range using klar package
 klaR.prediction <- predict(nb.klaR, features.test[,-7])
+
+#Printing the CrossTable to display the predictions from the actual value of the klaR package
 CrossTable(klaR.prediction$class, features.test$salary, dnn = c('predicted','actual'))
 
+#Calculating the accuracy of the klaR package with the help the CrossTable
 accuracy.klaR <- ((5805+702)/(8140))*100
 sprintf("The accuracy of the Naive Bayes model using klaR package is %s percent",accuracy.klaR)
 
+#Generating the confusionMatrix for the klaR package
 confusionMatrix(klaR.prediction$class, prediction_labels)
 
-#
+#naivebayes Package
+#Predicting the Salary range using naivebayes package
 naivebayes.prediction <- predict(nb.naivebayes, features.test[,-7])
+
+#Printing the CrossTable to display the predictions from the actual value of the naivebayes package
 CrossTable(naivebayes.prediction, features.test$salary, dnn = c('predicted','actual'))
 
+#Calculating the accuracy of the naivebayes package with the help the CrossTable
 accuracy.naivebayes <- ((5623+885)/(8140))*100
 sprintf("The accuracy of the Naive Bayes model using naivebayes package is %s percent",accuracy.naivebayes)
 
+#Generating the confusionMatrix for the naivebayes package
 confusionMatrix(naivebayes.prediction, prediction_labels)
 
-#
+#e1071 Package
+#Predicting the Salary range using e1071 package
 e1071.prediction <- predict(nb.e1071, features.test[,-7])
+
+#Printing the CrossTable to display the predictions from the actual value of the e1071 package
 CrossTable(e1071.prediction, features.test$salary, dnn = c('predicted','actual'))
 
+#Calculating the accuracy of the e1071 package with the help the CrossTable
 accuracy.e1071 <- ((6191+1947)/(8140))*100
 sprintf("The accuracy of the Naive Bayes model using e1071 package is %s percent",accuracy.e1071)
 
+#Generating the confusionMatrix for the e1071 package
 confusionMatrix(e1071.prediction, prediction_labels)
 
-#
+#Logistic Regression
+#Predicting the Salary range using Logistic Regression
 lr.prediction <- ifelse(predict(glm.lr, newdata = features.test, type = "response") < 0.5, " <=50K"," >50K")
+
+#Printing the CrossTable to display the predictions from the actual value of the logistic regression
 CrossTable(lr.prediction, features.test$salary, dnn = c('predicted','actual'))
 
+#Calculating the accuracy of the logistic regression with the help the CrossTable
 accuracy.lr <- ((5776+806)/(8140))*100
 sprintf("The accuracy of the Naive Bayes model using logistic regression is %s percent", accuracy.lr)
 
+#Generating the confusionMatrix for the logistic regression
 confusionMatrix(as.factor(lr.prediction), prediction_labels)
 ```
 
+                                          ---Problem 2---
+                                                              
+1. Load and then explore the data set on car sales referenced by the article Shonda Kuiper (2008) Introduction to Multiple Regression: How Much Is Your Car Worth?, Journal of Statistics Education, 16:3, DOI: 10.1080/10691898.2008.11889579.
+
 ```{r}
+#Importing liraries to read the .xlsx file 
 library(xlsx)
-library(psych)
+
+#Reading the kellycarsalesdata.xlsx data
 cars_data <- read.xlsx("kellycarsalesdata.xlsx", sheetIndex = 1)
 
+#Creating a copy of the cars data
 cars.data <- cars_data
 
+#Looking at the head and the structure of the data
 head(cars.data)
 str(cars.data)
+
+#Summarising the cars data
 summary(cars.data)
 
+#Factorising the cars data and make of the  the car
 cars.data$Make <- as.factor(cars.data$Make)
 ```
 
+2. Are there outliers in the data set? How do you identify outliers and how do you deal with them? Remove them but create a second data set with outliers removed. Keep the original data set.
+-> Outlier are identified using z-score method, we impute them using the mean method
+
 ```{r}
+#Importing the libraries to plot BarPlot and caluclate outliers
 library(tidyr)
 library(hrbrthemes)
 library(viridis)
 library(outliers)
 
+
+#Using for loop to plot BarPlot for all the Variables
 for (i in c("Price", "Mileage", "Cylinder", "Liter", "Doors", "Cruise", "Sound", "Leather"))
 {
-  print(outlier(cars.data[,i]))
   boxplot(cars.data[,i], col = "#69B3A2", xlab = i)
 }
 
+#Creating a copy of the car data to eliminate outliers
 cars.outlier <- cars_data
+
+#Using for loop and scores() function to caluclate outlier and replace them with NA
 for (i in c("Price", "Mileage", "Cylinder", "Liter", "Doors", "Cruise", "Sound", "Leather"))
 {
   zscore <- abs(scores(cars.outlier[,i]))
   cars.outlier[which((zscore > 3)),i] = NA
 }
 
+#Checking for outliers in the data
 anyNA(cars.outlier)
 
+#Dropping the NA values from the data
 new_cars.data <- cars.outlier %>% drop_na()
 
+#Verifing wheather all NA values are removed from the data
 anyNA(new_cars.data)
 ```
 
+3. What are the distributions of each of the features in the data set with outliers removed? Are they reasonably normal so you can apply a statistical learner such as regression? Can you normalize features through a log, inverse, or square-root transform? Transform as needed.
+-> Out of all features only Mileage is normally distributed. Price and Liter have skewed distributions. Rest features are categorical so the distribution do not matter. Hence we transform only Price and liter. But during transformation I observed that Liter does not change even with transformation so we neglect the transformation of Liter. Meanwhile Price becomes fairly normal after log transformation. 
+
 ```{r}
+#Importing library to plot the Histogram of the cars data
 library(ggplot2)
 
+#Using for loop to plot the histogram of the cars data
 for (i in c("Price", "Mileage", "Cylinder", "Liter", "Doors", "Cruise", "Sound", "Leather"))
 {
 hist(new_cars.data[,i], col = "#69B3A2", main = NULL, xlab = i)
 }
 
+#Using for loop to plot the histogram for the cars data with log transformed
 for (i in c("Price", "Mileage", "Liter"))
 {
 hist(log10(new_cars.data[,i]), col = "#69B3A2", main = NULL, xlab = i)
 }
 
+#Log transforming the Price value in the cars data
 new_cars.data$Price <- log10(new_cars.data$Price)
 ```
 
+4. What are the correlations to the response variable (car sales price) and are there collinearities? Build a full correlation matrix.
+-> Based on the observation from the correlation matrix, the meaningful insight which is observed is that Cylinder, Liter, and Cruise are highly correlated to the Price column.
+
 ```{r}
+#Correlation matrix of price vs other features
+cor(cars.data["Price"],cars.data[c("Mileage", "Cylinder", "Liter", "Doors", "Cruise", "Sound", "Leather")])
+
+#Full correlation matrix
+cor(cars.data[c("Price", "Mileage", "Cylinder", "Liter", "Doors", "Cruise", "Sound", "Leather")])
+```
+
+5. Split the data set 75/25 so you retain 25% for testing using random sampling.
+
+```{r}
+#Setting the seed for sampling to 1
 set.seed(1)
 
+#Spliting the dataset using createDataPartition() function, so that the data is samped in equal distribution based on the Make of the car
 cars.sample <- createDataPartition(cars.data$Make, p = 0.25, list = FALSE, times = 1)
 
+#Assigining 25% of the car data for testing and the remaining 75% for training
 cars.testing <- cars.data[cars.sample,]
 cars.training <- cars.data[-cars.sample,] 
 
+#Spliting the dataset using createDataPartition() function, so that the data is samped in equal distribution based on the Make of the new car
 new_cars.sample <- createDataPartition(new_cars.data$Make, p = 0.25, list = FALSE, times = 1)
 
+#Assigining 25% of the new car data for testing and the remaining 75% for training
 new_cars.testing <- new_cars.data[new_cars.sample,]
 new_cars.training <- new_cars.data[-new_cars.sample,] 
 ```
 
+6. Build a full multiple regression model for predicting car sales prices in this data set using the complete training data set (no outliers removed), i.e., a regression model that contains all features regardless of their p-values.
+
 ```{r}
+#Building a multiple logistic regression fro predicting car sales price
 cars.lr <- lm(Price~., data = cars.training)
+
+#Summarising the model
 summary(cars.lr)
 ```
 
+7. Build an ideal multiple regression model using backward elimination based on p-value for predicting car sales prices in this data set using the complete training data set with outliers removed (Question 2) and features transformed (Question 3). Provide a detailed analysis of the model using the training data set with outliers removed and features transformed, including Adjusted R-Squared, RMSE, and p-values of all coefficients.
+
 ```{r}
+#Importing laibrary for feature transformation
 library(SignifReg)
+
+#Building a multiple logistic regression fro predicting car sales price with outliers removed
 new_cars.lr <- lm(Price~., data = new_cars.training)
+
+#Summarising the model for which ouliers are removed
 summary(new_cars.lr)
 
+#Performing backward elimination using p-value
 new_cars.lr <- drop1SignifReg(new_cars.lr,alpha = 0.05,criterion="p-value")
 summary(new_cars.lr)
 
 new_cars.lr <- drop1SignifReg(new_cars.lr,alpha = 0.05,criterion="p-value")
 summary(new_cars.lr)
+
+#Calculating the root mean squared error
+rmse <- sqrt(mean(new_cars.lr$residuals^2))
+sprintf("rmse for the model is %s",rmse)
+
+#Calculating the adjusted R-Squared value
+sprintf("rmse for the model is 0.6964")
 ```
 
-```{r}
-new_car <- data.frame(NA, 61435, "SAAB", 4, 2.3, 4, 1, 1, 1)
-new_car.col_names <- c("Price", "Mileage", "Make", "Cylinder", "Liter", "Doors", "Cruise", "Sound", "Leather")
-colnames(new_car) <- new_car.col_names
-
-new_cars.data <- cars_data[c("Price", "Mileage", "Make", "Cylinder", "Liter", "Doors", "Cruise", "Sound", "Leather")]
-
-new_cars.data <- rbind(new_car, new_cars.data)
-
-new_cars.data$Make <- as.factor(new_cars.data$Make)
-
-new_car_testing.data <- new_cars.data[1,]
-
-car.pred <- predict(cars.lr, new_car_testing.data)
-unname(car.pred)
-
-new_car.pred <- predict(new_cars.lr, new_car_testing.data)
-10^(unname(new_car.pred))
-```
+8. On average, by how much do we expect a leather interior to change the resale value of a car based on the models built in (6) and in (7)? Note that 1 indicates the presence of leather in the car.
+-> Based on calculation it is seen that if the leather is present in the car model, then Price is affected by 162 USD
 
 ```{r}
-leather_interior_presesnt <- cars.lr$coefficients["(Intercept)"] +
+#Calculating price when leather is present
+leather_interior_present <- cars.lr$coefficients["(Intercept)"] +
                              cars.lr$coefficients["Mileage"] * mean(cars.training$Mileage) +
                              cars.lr$coefficients["Cylinder"] * mean(cars.training$Cylinder) +
                              cars.lr$coefficients["Liter"] * mean(cars.training$Liter) +
@@ -314,6 +434,7 @@ leather_interior_presesnt <- cars.lr$coefficients["(Intercept)"] +
                              cars.lr$coefficients["Sound"] * mean(cars.training$Sound) +
                              cars.lr$coefficients["Leather"] * 1
 
+#Calculating price when leather is absent
 leather_interior_absent <- cars.lr$coefficients["(Intercept)"] +
                            cars.lr$coefficients["Mileage"] * mean(cars.training$Mileage) +
                            cars.lr$coefficients["Cylinder"] * mean(cars.training$Cylinder) +
@@ -323,17 +444,59 @@ leather_interior_absent <- cars.lr$coefficients["(Intercept)"] +
                            cars.lr$coefficients["Sound"] * mean(cars.training$Sound) +
                            cars.lr$coefficients["Leather"] * 0
 
-change_in_price <- abs(leather_interior_presesnt - leather_interior_absent)
+#Printing the change in resale value
+change_in_price <- abs(leather_interior_present - leather_interior_absent)
 sprintf("The change in the resale value of the car in case of leather interior is present or absent is %s USD", change_in_price)
 ```
 
+9. Using the regression models of (6) and (7) what are the predicted resale prices of a 2005 4-door Saab with 61,435 miles with a leather interior, a 4-cylinder 2.3 liter engine, cruise control, and a premium sound system? Why are the predictions different?
+-> Prediction values are different because the accuracy of both models varies. Apart from that, the problem 2.6 model has all features included because of which the RMSE of the model is high. In contrast, the problem 2.7 model has only significant features selected, so the RMSE is low, and the accuracy is high.
+
 ```{r}
+#Creating a new data from the sample car data for testing
+new_car <- data.frame(NA, 61435, "SAAB", 4, 2.3, 4, 1, 1, 1)
+
+#Adding column names to the sample car data
+new_car.col_names <- c("Price", "Mileage", "Make", "Cylinder", "Liter", "Doors", "Cruise", "Sound", "Leather")
+colnames(new_car) <- new_car.col_names
+
+#Creating another sample of the cars data to perform factor operation on the new adult data
+new_cars.data <- cars_data[c("Price", "Mileage", "Make", "Cylinder", "Liter", "Doors", "Cruise", "Sound", "Leather")]
+
+#Binding the row of the new car data with the original car data
+new_cars.data <- rbind(new_car, new_cars.data)
+
+#Converting to factor the make of the car
+new_cars.data$Make <- as.factor(new_cars.data$Make)
+
+#Retriving the new car data after converting to factor
+new_car_testing.data <- new_cars.data[1,]
+
+#Testing the model for the new car data
+car.pred <- predict(cars.lr, new_car_testing.data)
+
+#Printing the values generated from the problem 2.6 model
+car_pred <- unname(car.pred)
+sprintf("The prediction Price for the test case by using problem 2.6 model  %s",car_pred)
+
+#Testing the model for the new car data
+new_car.pred <- predict(new_cars.lr, new_car_testing.data)
+
+#Printing the values generated from the problem 2.6 model
+new_car_pred <- 10^(unname(new_car.pred))
+sprintf("The prediction Price for the test case by using problem 2.7 model  %s",new_car_pred)
+```
+
+10. For the regression model of (7), calculate the 95% prediction interval for the car in (9).
+
+```{r}
+#Calculating 95% CI using interval function in predict() for problem 2.6 model
 car.pred.CI <- predict(cars.lr, new_car_testing.data, interval = "confidence")
 car.pred.CI <- data.frame("Predicted value" = car.pred.CI[1], "Lower Bound" = car.pred.CI[2], "Upper Bound" = car.pred.CI[3])
 car.pred.CI
 
+#Calculating 95% CI using interval function in predict() for problem 2.7 model
 new_car.pred.CI <- predict(new_cars.lr, new_car_testing.data, interval = "confidence")
-new_car.pred.CI <- data.frame("Predicted value" = new_car.pred.CI[1], "Lower Bound" = new_car.pred.CI[2], "Upper Bound" = new_car.pred.CI[3])
+new_car.pred.CI <- data.frame("Predicted value" = 10^new_car.pred.CI[1], "Lower Bound" = 10^new_car.pred.CI[2], "Upper Bound" = 10^new_car.pred.CI[3])
 new_car.pred.CI
 ```
-
