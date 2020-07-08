@@ -7,15 +7,18 @@ output: pdf_document
 
 ```{r}
 library(tidyverse)
-adult.data <- read.csv("adult.data", header = F)
+adult_data <- read.csv("adult.data", header = F)
 
 adult.names <- c("age","workclass","fnlwgt","education","education_num","maritial_status","occupation","relationship","race","sex","capital_gain","capital_loss","hours_per_week","native_country","salary")
 
-colnames(adult.data) <- adult.names
+colnames(adult_data) <- adult.names
 ```
 
 ```{r}
 library(arules)
+
+adult.data <- adult_data
+
 head(adult.data)
 str(adult.data)
 summary(adult.data)
@@ -41,10 +44,11 @@ adult.data$salary <- as.factor(adult.data$salary)
 ```
 
 ```{r}
+library(caret)
 set.seed(1)
-sample <- sample.int(n = nrow(adult.data), size = floor(.25*nrow(adult.data)), replace = F)
-testing <- adult.data[sample,]
-training <- adult.data[-sample,] 
+adult.sample <- createDataPartition(adult.data$salary, p = 0.25, list = FALSE, times = 1)
+adult.testing <- adult.data[adult.sample,]
+adult.training <- adult.data[-adult.sample,] 
 ```
 
 ```{r}
@@ -53,64 +57,283 @@ library(klaR)
 library(naivebayes)
 library(e1071)
 library(gmodels)
-library(caret)
 
-adult.data$sex <- as.factor(adult.data$sex)
-adult.data$salary <- as.factor(adult.data$salary)
-
-features.train <- training[c("age","education","workclass","sex","race","native_country","salary")]
-features.test <- testing[c("age","education","workclass","sex","race","native_country","salary")]
+features.train <- adult.training[c("age","education","workclass","sex","race","native_country","salary")]
+features.test <- adult.testing[c("age","education","workclass","sex","race","native_country","salary")]
 
 #
 nb.klaR <- NaiveBayes(salary~., data = features.train)
 
-klaR.prediction <- predict(nb.klaR, features.test[,-7])
-table(klaR.prediction$class, features.test[,7])
 
-accuracy.klaR <- ((5805+702)/(8140))*100
-sprintf("The accuracy of the Naive Bayes model using klaR package is %s percent",accuracy.klaR)
 
 #
 nb.naivebayes <- naive_bayes(salary~., features.train)
 
-naivebayes.prediction <- predict(nb.naivebayes, features.test[,-7])
-table(naivebayes.prediction, features.test[,7])
 
-accuracy.naivebayes <- ((5623+885)/(8140))*100
-sprintf("The accuracy of the Naive Bayes model using naivebayes package is %s percent",accuracy.naivebayes)
 
 #
-nb.e1071 <- naiveBayes(features.train, features.train$salary)
+nb.e1071 <- naiveBayes(salary~., data = features.train)
 
-e1071.prediction <- predict(nb.e1071, features.test)
-CrossTable(e1071.prediction, features.test$salary, prop.chisq = FALSE, prop.t = FALSE, dnn = c('predicted','actual'))
 
-accuracy.e1071 <- ((6191+1947)/(8140))*100
-sprintf("The accuracy of the Naive Bayes model using naivebayes package is %s percent",accuracy.e1071)
 
-#The majority vote
-pred_majority <- as.factor(ifelse(klaR.prediction=='Y' & naivebayes.prediction=='Y','Y',ifelse(klaR.prediction=='Y' & e1071.prediction=='Y','Y',ifelse(naivebayes.prediction=='Y' & e1071.prediction=='Y','Y','N'))))
-table(pred_majority)
+ensemble.model_1 <- function(data)
+  {
+    klaR.prediction <- predict(nb.klaR, data)[[1]]
+    naivebayes.prediction <- predict(nb.naivebayes, data)
+    e1071.prediction <- predict(nb.e1071, data)
+    nb.ensemble_1 <- data.frame("klaR" = klaR.prediction, "naivebayes" = naivebayes.prediction, "e1071" = e1071.prediction, 
+                                "Majority_Vote" = 
+                                  as.factor(ifelse(klaR.prediction == ' >50K' & naivebayes.prediction == ' >50K',' >50K', 
+                                            ifelse(klaR.prediction == ' >50K' & e1071.prediction == ' >50K', ' >50K', 
+                                            ifelse(naivebayes.prediction == ' >50K' & e1071.prediction == ' >50K', ' >50K', 
+                                                   ' <=50K')))))
+    return(nb.ensemble_1)
+ }
+
+ensemble.prediction_1 <- ensemble.model_1(features.test[,-7])
+
+CrossTable(ensemble.prediction_1$Majority_Vote, features.test$salary, dnn = c('predicted','actual'))
+
+accuracy.ensemble_1 <- ((5623+885)/(8140))*100
+sprintf("The accuracy of the Naive Bayes model using ensemble model is %s percent", accuracy.ensemble_1)
 ```
 
 ```{r}
-lr.data <- adult.data[c("age","education","workclass","sex","race","native_country","salary")]
 
-glm.lr <- glm(salary~., data = lr.data, family = binomial)
+glm.lr <- glm(salary~., data = features.train, family = binomial)
 
-lr.prediction <- round(predict(glm.lr, newdata = lr.data, type="response"),0)
-lr.data$predict.lr <- unname(predict.lr)
-lr.data$salary <- as.numeric(ifelse(lr.data$salary == " <=50K", 0, 1))
-confusionMatrix(table(lr.data$predict.lr, lr.data$salary))
+lr.prediction <- ifelse(predict(glm.lr, newdata = features.test, type = "response") < 0.5, " <=50K"," >50K")
+CrossTable(lr.prediction, features.test$salary, dnn = c('predicted','actual'))
+
+accuracy.lr <- ((5776+806)/(8140))*100
+sprintf("The accuracy of the Naive Bayes model using logistic regression is %s percent", accuracy.lr)
+
+
+```
+
+```{r}
+ensemble.model_2 <- function(data)
+  {
+    klaR.prediction <- predict(nb.klaR, data)[[1]]
+    naivebayes.prediction <- predict(nb.naivebayes, data)
+    e1071.prediction <- predict(nb.e1071, data)
+    lr.prediction <- ifelse(predict(glm.lr, newdata = data, type = "response") < 0.5, " <=50K"," >50K")
+    nb.ensemble_2 <- data.frame("klaR" = klaR.prediction, "naivebayes" = naivebayes.prediction, "e1071" = e1071.prediction, 
+                                "Logistic_Regression" = lr.prediction, 
+                                "Majority_Vote" = 
+                                  as.factor(ifelse(klaR.prediction == ' >50K' & naivebayes.prediction == ' >50K' & 
+                                                   e1071.prediction == ' >50K', ' >50K', 
+                                            ifelse(klaR.prediction == ' >50K' & naivebayes.prediction == ' >50K' & 
+                                                   lr.prediction == ' >50K', ' >50K', 
+                                            ifelse(naivebayes.prediction == ' >50K' & e1071.prediction == ' >50K' &  
+                                                   lr.prediction == ' >50K', ' >50K', ' <=50K')))))
+    return(nb.ensemble_2)   
+  }
+
+ensemble.prediction_2 <- ensemble.model_2(features.test[,-7])
+
+CrossTable(ensemble.prediction_2$Majority_Vote, features.test$salary, dnn = c('predicted','actual'))
+
+accuracy.ensemble_1 <- ((5741+831)/(8140))*100
+sprintf("The accuracy of the Naive Bayes model using ensemble model is %s percent", accuracy.ensemble_1)
+```
+
+```{r}
+new_adult <- data.frame(35, " Doctorate", " Local-gov", " Female", " White", " Portugal", NA)
+data.col_names <- c("age","education","workclass","sex","race","native_country", "salary")
+colnames(new_adult) <- data.col_names
+
+new_adult.data <- adult_data[c("age","education","workclass","sex","race","native_country", "salary")]
+
+new_adult.data <- rbind(new_adult, new_adult.data)
+
+new_adult.data$age <- discretize(new_adult.data$age, breaks = 4)
+new_adult.data$sex <- as.factor(new_adult.data$sex)
+new_adult.data$salary <- as.factor(new_adult.data$salary)
+
+new_testing.data <- new_adult.data[1,]
+
+ensemble.prediction_3 <- ensemble.model_2(new_testing.data[,-7])
+sprintf("The predicted salary range for the given data using ensemble model is %s", ensemble.prediction_3$Majority_Vote)
 ```
 
 ```{r}
 prediction_labels <- features.test$salary
 
+#
+klaR.prediction <- predict(nb.klaR, features.test[,-7])
+CrossTable(klaR.prediction$class, features.test$salary, dnn = c('predicted','actual'))
+
+accuracy.klaR <- ((5805+702)/(8140))*100
+sprintf("The accuracy of the Naive Bayes model using klaR package is %s percent",accuracy.klaR)
+
 confusionMatrix(klaR.prediction$class, prediction_labels)
+
+#
+naivebayes.prediction <- predict(nb.naivebayes, features.test[,-7])
+CrossTable(naivebayes.prediction, features.test$salary, dnn = c('predicted','actual'))
+
+accuracy.naivebayes <- ((5623+885)/(8140))*100
+sprintf("The accuracy of the Naive Bayes model using naivebayes package is %s percent",accuracy.naivebayes)
 
 confusionMatrix(naivebayes.prediction, prediction_labels)
 
+#
+e1071.prediction <- predict(nb.e1071, features.test[,-7])
+CrossTable(e1071.prediction, features.test$salary, dnn = c('predicted','actual'))
+
+accuracy.e1071 <- ((6191+1947)/(8140))*100
+sprintf("The accuracy of the Naive Bayes model using e1071 package is %s percent",accuracy.e1071)
+
 confusionMatrix(e1071.prediction, prediction_labels)
+
+#
+lr.prediction <- ifelse(predict(glm.lr, newdata = features.test, type = "response") < 0.5, " <=50K"," >50K")
+CrossTable(lr.prediction, features.test$salary, dnn = c('predicted','actual'))
+
+accuracy.lr <- ((5776+806)/(8140))*100
+sprintf("The accuracy of the Naive Bayes model using logistic regression is %s percent", accuracy.lr)
+
+confusionMatrix(as.factor(lr.prediction), prediction_labels)
+```
+
+```{r}
+library(xlsx)
+library(psych)
+cars_data <- read.xlsx("kellycarsalesdata.xlsx", sheetIndex = 1)
+
+cars.data <- cars_data
+
+head(cars.data)
+str(cars.data)
+summary(cars.data)
+
+cars.data$Make <- as.factor(cars.data$Make)
+```
+
+```{r}
+library(tidyr)
+library(hrbrthemes)
+library(viridis)
+library(outliers)
+
+for (i in c("Price", "Mileage", "Cylinder", "Liter", "Doors", "Cruise", "Sound", "Leather"))
+{
+  print(outlier(cars.data[,i]))
+  boxplot(cars.data[,i], col = "#69B3A2", xlab = i)
+}
+
+cars.outlier <- cars_data
+for (i in c("Price", "Mileage", "Cylinder", "Liter", "Doors", "Cruise", "Sound", "Leather"))
+{
+  zscore <- abs(scores(cars.outlier[,i]))
+  cars.outlier[which((zscore > 3)),i] = NA
+}
+
+anyNA(cars.outlier)
+
+new_cars.data <- cars.outlier %>% drop_na()
+
+anyNA(new_cars.data)
+```
+
+```{r}
+library(ggplot2)
+
+for (i in c("Price", "Mileage", "Cylinder", "Liter", "Doors", "Cruise", "Sound", "Leather"))
+{
+hist(new_cars.data[,i], col = "#69B3A2", main = NULL, xlab = i)
+}
+
+for (i in c("Price", "Mileage", "Liter"))
+{
+hist(log10(new_cars.data[,i]), col = "#69B3A2", main = NULL, xlab = i)
+}
+
+new_cars.data$Price <- log10(new_cars.data$Price)
+```
+
+```{r}
+set.seed(1)
+
+cars.sample <- createDataPartition(cars.data$Make, p = 0.25, list = FALSE, times = 1)
+
+cars.testing <- cars.data[cars.sample,]
+cars.training <- cars.data[-cars.sample,] 
+
+new_cars.sample <- createDataPartition(new_cars.data$Make, p = 0.25, list = FALSE, times = 1)
+
+new_cars.testing <- new_cars.data[new_cars.sample,]
+new_cars.training <- new_cars.data[-new_cars.sample,] 
+```
+
+```{r}
+cars.lr <- lm(Price~., data = cars.training)
+summary(cars.lr)
+```
+
+```{r}
+library(SignifReg)
+new_cars.lr <- lm(Price~., data = new_cars.training)
+summary(new_cars.lr)
+
+new_cars.lr <- drop1SignifReg(new_cars.lr,alpha = 0.05,criterion="p-value")
+summary(new_cars.lr)
+
+new_cars.lr <- drop1SignifReg(new_cars.lr,alpha = 0.05,criterion="p-value")
+summary(new_cars.lr)
+```
+
+```{r}
+new_car <- data.frame(NA, 61435, "SAAB", 4, 2.3, 4, 1, 1, 1)
+new_car.col_names <- c("Price", "Mileage", "Make", "Cylinder", "Liter", "Doors", "Cruise", "Sound", "Leather")
+colnames(new_car) <- new_car.col_names
+
+new_cars.data <- cars_data[c("Price", "Mileage", "Make", "Cylinder", "Liter", "Doors", "Cruise", "Sound", "Leather")]
+
+new_cars.data <- rbind(new_car, new_cars.data)
+
+new_cars.data$Make <- as.factor(new_cars.data$Make)
+
+new_car_testing.data <- new_cars.data[1,]
+
+car.pred <- predict(cars.lr, new_car_testing.data)
+unname(car.pred)
+
+new_car.pred <- predict(new_cars.lr, new_car_testing.data)
+10^(unname(new_car.pred))
+```
+
+```{r}
+leather_interior_presesnt <- cars.lr$coefficients["(Intercept)"] +
+                             cars.lr$coefficients["Mileage"] * mean(cars.training$Mileage) +
+                             cars.lr$coefficients["Cylinder"] * mean(cars.training$Cylinder) +
+                             cars.lr$coefficients["Liter"] * mean(cars.training$Liter) +
+                             cars.lr$coefficients["Doors"] * mean(cars.training$Doors) +
+                             cars.lr$coefficients["Cruise"] * mean(cars.training$Cruise) +
+                             cars.lr$coefficients["Sound"] * mean(cars.training$Sound) +
+                             cars.lr$coefficients["Leather"] * 1
+
+leather_interior_absent <- cars.lr$coefficients["(Intercept)"] +
+                           cars.lr$coefficients["Mileage"] * mean(cars.training$Mileage) +
+                           cars.lr$coefficients["Cylinder"] * mean(cars.training$Cylinder) +
+                           cars.lr$coefficients["Liter"] * mean(cars.training$Liter) +
+                           cars.lr$coefficients["Doors"] * mean(cars.training$Doors) +
+                           cars.lr$coefficients["Cruise"] * mean(cars.training$Cruise) +
+                           cars.lr$coefficients["Sound"] * mean(cars.training$Sound) +
+                           cars.lr$coefficients["Leather"] * 0
+
+change_in_price <- abs(leather_interior_presesnt - leather_interior_absent)
+sprintf("The change in the resale value of the car in case of leather interior is present or absent is %s USD", change_in_price)
+```
+
+```{r}
+car.pred.CI <- predict(cars.lr, new_car_testing.data, interval = "confidence")
+car.pred.CI <- data.frame("Predicted value" = car.pred.CI[1], "Lower Bound" = car.pred.CI[2], "Upper Bound" = car.pred.CI[3])
+car.pred.CI
+
+new_car.pred.CI <- predict(new_cars.lr, new_car_testing.data, interval = "confidence")
+new_car.pred.CI <- data.frame("Predicted value" = new_car.pred.CI[1], "Lower Bound" = new_car.pred.CI[2], "Upper Bound" = new_car.pred.CI[3])
+new_car.pred.CI
 ```
 
