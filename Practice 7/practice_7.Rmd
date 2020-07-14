@@ -1,0 +1,199 @@
+---
+title: "Practice 7"
+author: "Smit Patil"
+date: "7/13/2020"
+output: pdf_document
+---
+
+Problem 1.
+
+Build an R Notebook of the concrete strength example in the textbook on pages 232 to 239. Show each step and add appropriate documentation.
+
+```{r}
+#Importing Concrete data
+concrete <- read.csv("concrete.csv")
+
+#Looking at the headand the structure of the data
+head(concrete)
+str(concrete)
+```
+
+```{r}
+#Creating a function for normalization
+normalize <- function(x) 
+  {
+    return((x - min(x)) / (max(x) - min(x)))
+  }
+
+#Normalizing the concrete data
+concrete_norm <- as.data.frame(lapply(concrete, normalize))
+
+#Looking at the summary of the normalized concrete strength and the original concrete strength data
+summary(concrete_norm$strength)
+summary(concrete$strength)
+```
+
+```{r}
+#Importing libraries for training the model
+library(neuralnet)
+
+#Creating a training and testing data sets from the normalized concrete data
+concrete_train <- concrete_norm[1:773, ]
+concrete_test <- concrete_norm[774:1030, ]
+
+#Training the model
+concrete_model <- neuralnet(strength ~ cement + slag + ash + water + superplastic + coarseagg + fineagg + age, data = concrete_train)
+
+#Plotting the trained model
+plot(concrete_model)
+
+#Evaluating the model performance
+model_results <- compute(concrete_model, concrete_test[1:8])
+
+#Predicting the strength from the testing data
+predicted_strength <- model_results$net.result
+
+#Calculating the correlation
+cor(predicted_strength, concrete_test$strength)
+```
+
+```{r}
+#Improving the model performance
+concrete_model2 <- neuralnet(strength ~ cement + slag + ash + water + superplastic + coarseagg + fineagg + age, data = concrete_train, hidden = 5)
+
+#Plotting the graph for the second model
+plot(concrete_model2)
+
+#Evaluating the performance of the second model
+model_results2 <- compute(concrete_model2, concrete_test[1:8])
+
+#Predicting the strength for the second model
+predicted_strength2 <- model_results2$net.result
+
+#Calculating the correlation
+cor(predicted_strength2, concrete_test$strength)
+```
+
+Problem 2.
+
+Build an R Notebook of the optical character recognition example in the textbook on pages 249 to 257. Show each step and add appropriate documentation.
+
+```{r}
+#Importing Libraries
+library(kernlab)
+
+#Importing letters data
+letters <- read.csv("letterdata.csv")
+
+#Viewing at the head and the structure of the letters data
+head(letters)
+str(letters)
+
+#Creating factors for the letter column in the letters dataset
+letters$letter <- as.factor(letters$letter)
+
+#Spliting the data for training and testing
+letters_train <- letters[1:16000, ]
+letters_test <- letters[16001:20000, ]
+
+#Building a classifier using the kernlab package
+letter_classifier <- ksvm(letter ~ ., data = letters_train, kernel = "vanilladot")
+
+#Printing the letters_classifier
+letter_classifier
+
+#Evaluating the performance of the model
+letter_predictions <- predict(letter_classifier, letters_test)
+
+#Looking at the head of the letters prediction
+head(letter_predictions)
+
+#Creating a table of predicted vs actual values
+table(letter_predictions, letters_test$letter)
+
+#Creating a logical vector of the predicted value to the actual values
+agreement <- letter_predictions == letters_test$letter
+
+#Creating a table for the logiacl vector
+table(agreement)
+
+#Creating a table with their probability for the logical vector
+prop.table(table(agreement))
+```
+
+```{r}
+#Improving the model performance
+letter_classifier_rbf <- ksvm(letter ~ ., data = letters_train, kernel = "rbfdot")
+
+#Evaluating the performance of the new model
+letter_predictions_rbf <- predict(letter_classifier_rbf, letters_test)
+
+#Creating a logical vector of the predicted value to the actual values for the new model
+agreement_rbf <- letter_predictions_rbf == letters_test$letter
+
+#Creating a table for the logiacl vector of the new model
+table(agreement_rbf)
+
+#Creating a table with their probability for the logical vector of the new model
+prop.table(table(agreement_rbf))
+```
+
+Problem 3.
+
+Build an R Notebook of the grocery store transactions example in the textbook on pages 266 to 284. Show each step and add appropriate documentation.
+
+```{r}
+#Importing libraries
+library(arules)
+
+#Importing groceries data
+groceries <- read.transactions("groceries.csv", sep = ",")
+
+#Summarising the data
+summary(groceries)
+
+#Inspecting the first 5 rows of the groceries data
+inspect(groceries[1:5])
+
+#Calculating the frequency of the first 3 items
+itemFrequency(groceries[, 1:3])
+
+#Plotting the ietms with atleast 10% support
+itemFrequencyPlot(groceries, support = 0.1)
+
+#Plotting the top 20 ietms
+itemFrequencyPlot(groceries, topN = 20)
+
+#Creating a sparse matrix for the first five transactions
+image(groceries[1:5])
+
+#Creating a sparse matrix for a random sample of 100 transactions
+image(sample(groceries, 100))
+
+#Calculating rules using the default values of the apriori function
+apriori(groceries)
+
+#Calculating rules using custom values
+groceryrules <- apriori(groceries, parameter = list(support = 0.006, confidence = 0.25, minlen = 2))
+groceryrules
+
+#Summarising the new rules
+summary(groceryrules)
+
+#Inspecting the first 3 rules of the grocery rules
+inspect(groceryrules[1:3])
+
+#Combining the sort function with the inspect function to find the best five rules according to the lift statistic
+inspect(sort(groceryrules, by = "lift")[1:5])
+
+#Using subset function to find any rules with berries appearing in the rule
+berryrules <- subset(groceryrules, items %in% "berries")
+inspect(berryrules)
+
+#Saving association rules to a file or data frame
+write(groceryrules, file = "groceryrules.csv", sep = ",", quote = TRUE, row.names = FALSE)
+groceryrules_df <- as(groceryrules, "data.frame")
+
+#Looking at the structure of the newly created data frame
+str(groceryrules_df)
+```
