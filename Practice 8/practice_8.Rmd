@@ -1,0 +1,160 @@
+---
+title: "Practice 8"
+author: "Smit Patil"
+date: "7/20/2020"
+output: pdf_document
+---
+
+---Problem 1---
+
+Build an R Notebook of the social networking service example in the textbook on pages 296 to 310. Show each step and add appropriate documentation.
+
+```{r}
+#Importing social network service data
+teens <- read.csv("snsdata.csv")
+
+#Looking at the head and the structure of the data
+head(teens)
+str(teens)
+```
+
+```{r}
+#Creating a gender table for the teens
+table(teens$gender)
+
+#Creating a gender table along with the count of NA for the teens
+table(teens$gender, useNA = "ifany")
+
+#Summarising the age values of the teens
+summary(teens$age)
+
+#Setting age values to NA for ages below 13 and above 20
+teens$age <- ifelse(teens$age >= 13 & teens$age < 20, teens$age, NA)
+
+#Summarising the new age values
+summary(teens$age)
+
+#Assigining the value 1 if gender is equal to F and the gender is not equal to NA, 
+#otherwise it assigns the value 0
+teens$female <- ifelse(teens$gender == "F" & !is.na(teens$gender), 1, 0)
+
+#Assigning the value 0 in no_gender and if gender is NA else 1
+teens$no_gender <- ifelse(is.na(teens$gender), 1, 0)
+
+#Creating a table for gender along with the NA
+table(teens$gender, useNA = "ifany")
+
+#Creating a table for female along with the NA
+table(teens$female, useNA = "ifany")
+
+#Creating a table for no_gender along with the NA
+table(teens$no_gender, useNA = "ifany")
+
+#Calculating the mean age of the teens
+mean(teens$age)
+
+#Calculating the mean age of the teens with NA removed
+mean(teens$age, na.rm = TRUE)
+
+#calculating the mean age for levels of gradyear after removing the NA values
+aggregate(data = teens, age ~ gradyear, mean, na.rm = TRUE)
+
+#Calculatin the average age value
+ave_age <- ave(teens$age, teens$gradyear, FUN = function(x) mean(x, na.rm = TRUE))
+
+#replacing the NA values in age with their average age
+teens$age <- ifelse(is.na(teens$age), ave_age, teens$age)
+
+#Summarising the age values of the teens
+summary(teens$age)
+```
+
+```{r}
+#Creating a new data frame for the 36 features of interest
+interests <- teens[5:40]
+
+#Applying z-score standardization to the interests data frame
+interests_z <- as.data.frame(lapply(interests, scale))
+
+#Dividing the teens into 5 clusters using kmeans
+teen_clusters <- kmeans(interests_z, 5)
+
+#Printing the teens cluster sizes
+teen_clusters$size
+
+#Looking at the teens cluster along with their centers
+teen_clusters$centers
+
+#Adding cluster column from the teen_clusters data to the teens data
+teens$cluster <- teen_clusters$cluster
+
+#Looking at the first 5 rows of the teens data and their cluster
+teens[1:5, c("cluster", "gender", "age", "friends")]
+
+#calculating the mean age for each cluster using the aggregate function
+aggregate(data = teens, age ~ cluster, mean)
+
+#calculating the female percentage for each cluster using the aggregate function
+aggregate(data = teens, female ~ cluster, mean)
+
+#calculating the mean friends for each cluster using the aggregate function
+aggregate(data = teens, friends ~ cluster, mean)
+```
+
+
+---Problem 2---
+
+Provide 100-300 word answers to each of the following interview questions:
+
+```
+1. What are some of the key differences between SVM and Random Forest for classification? 
+When is each algorithm appropriate and preferable? Provide examples.
+-> Random Forests are suitable for multiclass problems, while SVMs are suitable for 
+two-class problems. To implement multiclass in SVM, we need to convert it into multiple 
+binary classification problems. Random forests can manage incredibly large data sets, 
+while SVMs can be sluggish to train if there are many features or examples in the input 
+dataset. Random Forest gives us the probability of a class, while SVM provides us with 
+the distance and will require further probability calculations. Random Forest performs 
+well on certain features and spaces of high dimensions with many training data sets. 
+In comparison, SVM works well on linear and nonlinear dependencies, and SVM will be the
+best choice to use with any nonlinear data collection.
+```
+
+```
+2. Why might it be preferable to include fewer predictors over many?
+-> There is an excellent likelihood for many predictors that there is a correlation between 
+most of them. However, some of the predictors are unlikely to have a significant effect on 
+the dependent variables, making them irrelevant. Selecting a limited amount of features also 
+decreases the probability of overfitting a pattern. Although all of the predictor variables 
+may be important, running the model may require a lot of computing power. Looking at the 
+future implementation of the model, we want to apply models not only to the same collection 
+but also to the general population from which the training data came. Therefore it is always 
+easier to understand and enforce simpler models that suit data well.
+```
+
+```
+3. You are asked to provide R-Squared for a kNN regression model. How would you respond to 
+that request?
+-> R-squared (R2) is a statistical measure that reflects the proportion of the variance for 
+a dependent variable, which is explained in a regression model by an independent variable or 
+variables. In simpler terms, it is a measure of goodness of fit of a linear model. In contrast, 
+kNN (K-nearest neighbors) is a classification algorithm that stores all available cases and 
+classifies new cases based on a similarity measure (e.g., distance functions). Unlike the 
+regression algorithms, classification algorithms have different evaluation metrics such as 
+'accuracy,' 'true-negative,' 'false-positive,' etc. Hence asking about the accuracy of the 
+kNN model would be a more suitable point.
+```
+
+```
+4. How can you determine which features to include when building a multiple regression model?
+-> Feature selection is used to minimize the number of features when constructing a multiple 
+regression model. The selection process aims to reduce the collection of predictor variables 
+to those needed and account for almost as much variance as the total collection accounts for. 
+Essentially, selection helps assess the degree of significance of each predictor variable. 
+It also assists in determining results after statistically removing the other predictor variables. 
+Four selection procedures are used to yield the most appropriate regression equation: forward 
+selection, backward elimination, stepwise selection, and block-wise selection. The first three 
+of those four approaches are called methods of statistical regression. Researchers also use 
+sequential regression methods (hierarchical or block-wise), which do not rely on statistical 
+results to pick predictors.
+```
