@@ -1,0 +1,116 @@
+---
+title: "Practicum 3"
+author: "Smit Patil"
+output: pdf_document
+---
+
+---Problem 2---
+
+1. Download the data set Plant Disease Data Set. Note that the data file does not contain header names; you may wish to add those. The description of each column can be found in the data set explanation. This assignment must be completed within a separate R Markdown Notebook. Use read.transaction() from the arules package to read the data.
+
+```{r warning = FALSE, message=FALSE}
+#Importing libraries
+library(arules)
+
+#Importing plant data
+plant.data <- read.transactions("plants.data")
+
+#Summarising plant data
+summary(plant.data)
+```
+
+2. Explore the data set as you see fit and that allows you to get a sense of the data and get comfortable with it. Is there distributional skew in any of the features? Is there a need to apply a transform?
+
+```{r warning = FALSE, message=FALSE}
+#Inspecting first 5 rows of the plant data
+inspect(plant.data[1:5])
+
+#Calculating frequency for the first 5 rows
+itemFrequency(plant.data[,1:5])
+
+#Plotting the ietms with atleast 10% support for first 5 species
+itemFrequencyPlot(plant.data[1:5], support = 0.1)
+
+#Plotting the top 10 species
+itemFrequencyPlot(plant.data, topN = 10)
+
+#Creating a sparse matrix for the first 10k species
+image(plant.data[1:10000])
+
+#Creating a sparse matrix for a random sample of 10k species
+image(sample(plant.data, 10000))
+```
+
+3. Use association rules to segment the data similar to what was done in Hämäläinen, W., & Nykänen, M. (2008, December). Efficient discovery of statistically significant association rules. In Data Mining, 2008. ICDM'08. Eighth IEEE International Conference on (pp. 203-212). IEEE.
+
+```{r warning = FALSE, message=FALSE}
+#Calculating rules using the default values of the apriori function
+apriori(plant.data)
+
+#Calculating rules using custom values
+plant.rules <- apriori(plant.data, parameter = list(support = 0.0005, confidence = 0.9))
+
+#summary of plant rules
+summary(plant.rules)
+
+#Inspecting the first 5 rules of the plant rules
+inspect(plant.rules[1:5])
+
+#Combining the sort function with the inspect function to find the best five rules according to the lift statistic
+inspect(sort(plant.rules, by = "lift")[1:5])
+```
+
+4. Are there clusters in the data? Can plants be segmented into groups? Build a k-means clustering model to investigate. 
+
+```{r warning = FALSE, message=FALSE}
+library(klaR)
+library(reshape2)
+
+#Converting plant data to vector
+plant.vector <- as.vector(unlist(plant.data@itemInfo))
+
+#Saving the vector file as a .csv file
+write(x = plant.vector, "plant.vector.csv", sep = ",")
+
+#Reading the plant vector csv file as a data frame
+plant.vector.data <- read.csv("plant.vector.csv", header = F, col.names = 1:100)
+
+#Removing empty columns from the data
+plant.vector.data <- plant.vector.data[,which(!is.na(plant.vector.data[1,]))]
+
+#Looking at the head and the structure of the data
+head(plant.vector.data)
+str(plant.vector.data)
+
+#Recasting the plant data
+plant.new <- recast(plant.vector.data, X1 ~ value, id.var = "X1")
+
+#Summary of the new plant data
+summary(plant.new)
+
+#Creating five clusters for plant data
+plant.cluster <- kmeans(plant.new[,-1], 5)
+
+#Printing the plant cluster sizes
+plant.cluster$size
+
+#Looking at the plant clusters along with their centers
+plant.cluster$centers
+```
+
+5. Visualize the clusters.
+
+```{r warning=FALSE, message=FALSE}
+#Importing libraries
+library(factoextra)
+library(scatterplot3d)
+
+#Plotting 2D graph to represent the clusters
+fviz_cluster(plant.cluster, data = plant.new[,-1],
+             geom = "point",
+             ellipse.type = "convex", 
+             ggtheme = theme_bw()
+             )
+#Plotting scatter plot for first 3 values in 3D
+scatterplot3d(plant.new[,-1], pch = plant.cluster$cluster, color = plant.cluster$cluster)
+```

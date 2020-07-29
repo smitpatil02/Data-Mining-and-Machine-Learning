@@ -1,0 +1,152 @@
+---
+title: "Practicum 3"
+author: "Smit Patil"
+output: pdf_document
+---
+
+---Problem 1---
+
+1. Download the data set Bank Marketing Data Set. Note that the data file does not contain header names; you may wish to add those. The description of each column can be found in the data set explanation. Use the bank-additional-full.csv data set. Select an appropriate subset for testing. Use bank-additional.csv if your computer cannot process the full data set.
+
+```{r warning = FALSE, message=FALSE}
+#Importing bnak dataset
+bank.data <- read.csv("bank-additional-full.csv", sep = ";", stringsAsFactors = T)
+
+#Looking at the head and the structure of the bank data
+head(bank.data)
+str(bank.data)
+
+# Summary of bank data
+summary(bank.data)
+```
+
+2. Explore the data set as you see fit and that allows you to get a sense of the data and get comfortable with it. Is there distributional skew in any of the features? Is there a need to apply a transform?
+
+```{r warning = FALSE, message=FALSE}
+#Checking for any NA's in the dataset
+anyNA(bank.data)
+
+#Using for loop to print histograms of bank data
+for(i in 1:ncol(bank.data))
+  {
+    sprintf("Histogram for: ", colnames(bank.data[i]))
+    hist((as.numeric(bank.data[,i])), xlab = colnames(bank.data[i]), col = '#46495a', main = NULL)
+ }
+
+#Converting factor coloumns to numeric
+for (i in 1:ncol(bank.data)-1)
+  {
+    if(is.factor(bank.data[,i]))
+      {
+        bank.data[,i] <- as.numeric(bank.data[,i])
+      }
+  }
+
+#Printing the structure of bank data
+str(bank.data)
+
+#Creating a function for normalization
+normalize <- function(x)
+  {
+    return ((x-min(x))/(max(x)-min(x)))
+  }
+
+#normalizing the bank data
+bank.data <- data.frame(lapply(bank.data[,-21], normalize), bank.data$y)
+```
+
+3. Build a classification model using a support vector machine that predicts if a bank customer will open a term deposit account.
+
+```{r warning = FALSE, message=FALSE}
+#Importing libraries
+library(caret)
+library(e1071)
+
+#Creating a random sample using createDataPartition function
+set.seed(1)
+sample <- createDataPartition(bank.data$bank.data.y, p=0.75, list = FALSE)
+
+#Creating training and testing datasets SVM
+bank.train.SVM <- bank.data[sample,]
+bank.test.SVM <- bank.data[-sample,]
+
+#Creating SVM model
+bank.SVM <- svm(bank.data.y ~ ., data = bank.train.SVM, probability = TRUE)
+
+#Predicting the values for the test data
+SVM.predict <- predict(bank.SVM, bank.test.SVM, probability = TRUE)
+
+#Printing the confusionMatrix for the SVM model
+confusionMatrix(SVM.predict, bank.test.SVM$bank.data.y)
+```
+
+4. Build another classification model using a neural network that also predicts if a bank customer will open a term deposit account.
+
+```{r warning = FALSE, message=FALSE}
+#Importing libraries for Neural Netwrok
+library(neuralnet)
+
+#Creating training and testing datasets for Neural Netwrok(NN)
+bank.train.NN <- bank.data[sample,]
+bank.test.NN <- bank.data[-sample,]
+
+#Setting y as an integer
+bank.train.NN$bank.data.y <- as.integer(bank.train.NN$bank.data.y)
+bank.test.NN$bank.data.y <- as.integer(bank.test.NN$bank.data.y)
+
+#Creating function softplus for smoothening
+softplus <- function(x) log(1+exp(x))
+
+#Creating Neural Network model
+bank.NN <- neuralnet(bank.data.y ~ ., bank.train.NN, hidden = c(3, 2), threshold = 0.5, rep = 1, linear.output = FALSE, act.fct = softplus)
+
+#plotting the neural network graph
+plot(bank.NN, rep="best")
+
+#Computing the values for the test data
+NN.predict <- compute(bank.NN, bank.test.NN[,-21])
+
+#Calculating correlation between the actual and predicted values
+cor.NN <- cor(NN.predict$net.result, bank.test.NN$bank.data.y)
+sprintf("The correlation between actual values and predicted values by Neural Network is: %s", cor.NN)
+```
+
+5. Compare the accuracy of the two models based on AUC.
+
+```{r warning = FALSE, message=FALSE}
+#Importing libraries to calculate ROC and AUC
+library(pROC)
+
+#Retiving probability values for SVM
+df <- as.data.frame(attr(SVM.predict, "probabilities"))
+colnames(df) <- c("one", "two")
+
+#Plotting AUC graph for SVM
+plot.roc(roc(as.numeric(bank.test.SVM$bank.data.y), as.numeric(df$one)), axis = TRUE, legacy.axes = FALSE, print.auc = TRUE, asp = 0)
+
+#Plotting AUC graph for Neural Network
+plot.roc(roc(as.numeric(bank.test.NN$bank.data.y), as.numeric(NN.predict$net.result)), axis = TRUE, legacy.axes = FALSE, print.auc = TRUE, asp = 0)
+```
+
+6. Calculate precision and recall for both models. See this article to understand how to calculate these metrics.
+
+```{r warning = FALSE, message=FALSE}
+#Calculating precision for SVM
+SVM.precision <- posPredValue(SVM.predict, bank.test.SVM$bank.data.y, positive = "no")
+sprintf("The precision for SVM is: %s", SVM.precision)
+
+#Calculating recall for SVM
+SVM.recall <- sensitivity(SVM.predict, bank.test.SVM$bank.data.y, positive = "no")
+sprintf("The recall for SVM is: %s", SVM.recall)
+
+#Creating data frame prediction strength for Neural Netwrok based on the original factor values
+NN.predict.strength <- ifelse(NN.predict$net.result>1.5, 2, 1)
+
+#Calculating precision for Neural Network
+NN.precision <- posPredValue(as.factor(NN.predict.strength), as.factor(bank.test.NN$bank.data.y), positive = "1")
+sprintf("The precision for Neural Network is: %s", NN.precision)
+
+#Calculating reacll for Neural Network
+NN.recall <- sensitivity(as.factor(NN.predict.strength), as.factor(bank.test.NN$bank.data.y), positive = "1")
+sprintf("The recall for Neural Network is: %s", NN.recall)
+```
