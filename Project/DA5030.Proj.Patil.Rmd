@@ -192,16 +192,71 @@ library(caret)
 library(e1071)
 library(neuralnet)
 library(class)
+library(rpart)
+library(C50)
 
 #Creating a random sample using createDataPartition function
 set.seed(1)
-sample <- createDataPartition(passenger.data$satisfaction, p=0.75, list = FALSE)
+sample <- createDataPartition(passenger.data$satisfaction, p = 0.75, list = FALSE)
 
 #Creating a training and testing dataset based on the sampled value
 train.data <- passenger.data[sample,]
 test.data <- passenger.data[-sample,]
 
-###kNN###
+#############################
+#### Logistic Regression ####
+#############################
+
+
+##### Logistic Regression Model Implementation #####
+
+#Creating Logistic Regression model
+LR.model <- glm(satisfaction~., data = train.data, family = "binomial")
+
+#Summary of Logistic regression model
+summary(LR.model)
+
+#Predicting the values for test data
+LR.predict_prob <- predict(LR.model, test.data, type = "response")
+LR.predict <- as.factor(ifelse(LR.predict_prob < 0.5, "neutral or dissatisfied", "satisfied"))
+
+#Producing Confusion Matrix for the classification
+LR.CM <- confusionMatrix(LR.predict, test.data$satisfaction)
+LR.CM
+
+
+##### Logistic Regression Model Improvement #####
+
+#Setweise backward elimination using AIC
+step(LR.model, direction =  "backward")
+
+#Creating a new model after backwards elimination
+LR.model_new <- glm(formula = satisfaction ~ Gender + Customer.Type + Age + Type.of.Travel + Class +
+                      Flight.Distance + Inflight.wifi.service + Departure.Arrival.time.convenient +
+                      Ease.of.Online.booking + Food.and.drink + Online.boarding + Seat.comfort +
+                      Inflight.entertainment + On.board.service + Leg.room.service + Baggage.handling +
+                      Checkin.service + Inflight.service + Cleanliness + Departure.Delay.in.Minutes +
+                      Arrival.Delay.in.Minutes, family = "binomial", data = train.data)
+
+#Summary of the new logistic regression model
+summary(LR.model_new)
+
+#Predicting the values after backward elimination 
+LR.predict_prob_new <- predict(LR.model_new, test.data, type = "response")
+LR.predict_new <- as.factor(ifelse(LR.new.predict_prob < 0.5, "neutral or dissatisfied", "satisfied"))
+
+#Producing Confusion Matrix for the classification of new model
+LR.CM_new <- confusionMatrix(LR.new.predict, test.data$satisfaction)
+LR.CM_new
+
+#We see that there is no improvement in the accuracy of the model after backward elimination
+
+##############################
+#### k-Nearest Neighbors  ####
+##############################
+
+
+##### k-Nearest Neighbors model Implementation #####
 
 #Creating train labels and test labels for kNN implementation
 train.label <- train.data[,23]
@@ -209,27 +264,107 @@ test.label <- test.data[,23]
 
 Sys.time()
 #Creating kNN model
-kNN.predict <- knn(train = train.data[,-23], test = test.data[,-23], cl = train.label, k = 5)
+kNN.predict <- knn(train = train.data[,-23], test = test.data[,-23], cl = train.label, k = 10)
 
 #Producing Confusion matrix for the classification
-confusionMatrix(kNN.predict, test.label)
+kNN.CM <- confusionMatrix(kNN.predict, test.label)
+kNN.CM
 Sys.time()
 
-###SVM###
+
+##### k-Nearest Neighbors model Tuning #####
+
+Sys.time()
+#Creating kNN model
+kNN.predict_new <- knn(train = train.data[,-23], test = test.data[,-23], cl = train.label, k = 5)
+
+#Producing Confusion Matrix for the classification
+kNN.CM_new <- confusionMatrix(kNN.predict_new, test.label)
+kNN.CM_new
+Sys.time()
+
+#Decreasing the number of neighbours from 10 to 5 increases the accuracy of the model from 92.69% to 92.73%
+#The gain in the accuracy in minuscule but the time reqired calculate for k = 5 is also less than k = 10
+#I have also tried to implement the model with k = 311 which is the "sqrt(nrow(train.data))" on RStudio Cloud,
+#but the accuracy came out to be much more lesser that k = 5 or k = 10.
+
+#############################
+####### Decision Tree #######
+#############################
+
+
+##### Decision Tree Model Implementation #####
+
+#Creating a Decesion Tree model using rpart
+rpart.model <- rpart(satisfaction ~ ., data = train.data, method = "class")
+
+#Predicting the probabilities for the target variable from the test data
+rpart.predict_prob <- predict(rpart.model, test.data)
+
+#Replacing the probability values to the values of the target variable
+rpart.predict <- as.factor(ifelse(rpart.predict_prob[,2] < 0.5, "neutral or dissatisfied", "satisfied"))
+
+#Producing Confusion Matrix for the classification using rpart
+rpart.CM <- confusionMatrix(rpart.predict, test.data$satisfaction)
+rpart.CM
+
+
+##### Decision Tree Model Improvement #####
+
+#Creating a Decesion Tree model using C5.0
+c50.model <- C5.0(x = train.data[,-23], y = train.data$satisfaction)
+
+#Predicting the target variable of the test data based on the above model
+c50.predict <- predict(c50.model, test.data[,-23])
+
+#Producing Confusion Matrix for the classification using rpart
+c50.CM <- confusionMatrix(c50.predict, test.data$satisfaction)
+c50.CM
+
+#We see that changing the Decision Tree model from rpart to C5.0 increases the accuracy from 88.45% to 95.79%
+
+##############################
+### Support Vector Machine ###
+##############################
+
+
+##### SVM Model Implementation #####
 
 Sys.time()
 #Creating SVM model
-passenger.SVM <- svm(satisfaction ~ ., data = train.data, probability = TRUE)
+SVM.model <- svm(satisfaction ~ ., data = train.data, probability = TRUE)
 
 Sys.time()
 #Predicting the values for the test data
-SVM.predict <- predict(passenger.SVM, test.data, probability = TRUE)
+SVM.predict <- predict(SVM.model, test.data, probability = TRUE)
 
 #Printing the confusionMatrix for the SVM model
-confusionMatrix(SVM.predict, test.data$satisfaction)
+SVM.CM <- confusionMatrix(SVM.predict, test.data$satisfaction)
+SVM.CM
 Sys.time()
 
-###Neural Network###
+
+##### SVM Model Improvement #####
+
+Sys.time()
+#Creating SVM model
+SVM.model_new <- svm(satisfaction ~ ., data = train.data, kernel = "linear", probability = TRUE)
+
+Sys.time()
+#Predicting the values for the test data
+SVM.predict_new <- predict(SVM.model_new, test.data, probability = TRUE)
+
+#Printing the confusionMatrix for the SVM model
+SVM.CM_new <- confusionMatrix(SVM.predict_new, test.data$satisfaction)
+SVM.CM_new
+Sys.time()
+
+#############################
+###### Neural Network  ######
+#############################
+
+
+##### Neural Network Model Implementation #####
 
 #Creating training and testing datasets for Neural Netwrok(NN)
 NN.train <- train.data
@@ -244,19 +379,103 @@ softplus <- function(x) log(1+exp(x))
 
 Sys.time()
 #Creating Neural Network model
-passenger.NN <- neuralnet(satisfaction ~ ., NN.train, hidden = c(3, 2), threshold = 0.5, rep = 1, linear.output = FALSE, act.fct = softplus)
-nn.end <- Sys.time()
+NN.model <- neuralnet(satisfaction ~ ., NN.train, hidden = 1, threshold = 1, rep = 1, linear.output = FALSE, act.fct = softplus)
+Sys.time()
 
 #plotting the neural network graph
-plot(passenger.NN, rep="best")
+plot(NN.model, rep="best")
 
 Sys.time()
 #Computing the values for the test data
-NN.predict <- compute(passenger.NN, NN.test[,-23])
+NN.predict <- compute(NN.model, NN.test[,-23])
 
 #Calculating correlation between the actual and predicted values
-cor.NN <- cor(NN.predict$net.result, NN.test$satisfaction)
-sprintf("The correlation between actual values and predicted values by Neural Network is: %s", cor.NN)
+NN.cor <- cor(NN.predict$net.result, NN.test$satisfaction)
+sprintf("The correlation between actual values and predicted values by Neural Network model is: %s", NN.cor)
 Sys.time()
-```
 
+
+
+##### Neural Network Model Tuning #####
+
+Sys.time()
+#Creating Neural Network model
+NN.model_new <- neuralnet(satisfaction ~ ., NN.train, hidden = 2, threshold = 0.5, rep = 1, linear.output = FALSE, act.fct = softplus)
+Sys.time()
+
+#plotting the neural network graph
+plot(NN.model_new, rep="best")
+
+Sys.time()
+#Computing the values for the test data
+NN.predict_new <- compute(NN.model_new, NN.test[,-23])
+
+#Calculating correlation between the actual and predicted values
+NN.cor_new <- cor(NN.predict_new$net.result, NN.test$satisfaction)
+sprintf("The correlation between actual values and predicted values by the new Neural Network model is: %s", NN.cor_new)
+Sys.time()
+
+
+
+##### Comparision of models #####
+
+#Creating a data frame to compare all models along with their optimized versions
+model <- c(rep("Logistic Regression", 2), rep("k-Nearest Neighbour", 2), rep("Decision Tree", 2), 
+           rep("Support Vector Machine", 2))
+version <- rep(c("Old", "New"), 4)
+accuracy <- c(LR.CM$overall[1]*100, LR.CM_new$overall[1]*100, kNN.CM_new$overall[1]*100,
+              kNN.CM_new$overall[1]*100, rpart.CM$overall[1]*100, c50.CM$overall[1]*100,
+              SVM.CM_new$overall[1]*100, SVM.CM_new$overall[1]*100)
+
+#Printing the accuracy for all the models
+models.compare <- data.frame(model, version, accuracy)
+models.compare
+
+#Plotting a grouped bar plot for the accuracy of all the models grouped by their versions
+ggplot(models.compare, aes(fill=version, y=accuracy, x=model)) + geom_bar(position="dodge", stat="identity") +
+  theme_minimal() + ggtitle("Comparing the accuracy of all the models") + xlab("Models") + ylab("Accuracy (%)")
+
+
+
+##### Construction of an Ensemble Model #####
+
+#Creating an ensemble model function
+ensemble.model <- function(data)
+  {
+    LR.prediction <- as.factor(ifelse((predict(LR.model, data, type = "response")) < 0.5, 
+                                      "neutral or dissatisfied", "satisfied"))
+    kNN.prediction <- knn(train = train.data[,-23], test = data[,-23], cl = train.label, k = 5)
+    c50.prediction <- predict(c50.model, data[,-23])
+    SVM.prediction <- predict(SVM.model_new, test.data, probability = TRUE)
+    NN.prediction <- 
+    ensemble.predict <-  as.factor(ifelse(LR.prediction == 'satisfied' & kNN.prediction == 'satisfied' & 
+                                            c50.prediction == 'satisfied', 'satisfied',
+                                   ifelse(LR.prediction == 'satisfied' & kNN.prediction == 'satisfied' & 
+                                           SVM.prediction == 'satisfied', 'satisfied',
+                                   ifelse(LR.prediction == 'satisfied' & kNN.prediction == 'satisfied' & 
+                                           NN.prediction == 'satisfied', 'satisfied',
+                                   ifelse(LR.prediction == 'satisfied' & c50.prediction == 'satisfied' & 
+                                           SVM.prediction == 'satisfied', 'satisfied',
+                                   ifelse(LR.prediction == 'satisfied' & c50.prediction == 'satisfied' & 
+                                           NN.prediction == 'satisfied', 'satisfied',
+                                   ifelse(LR.prediction == 'satisfied' & SVM.prediction == 'satisfied' & 
+                                           NN.prediction == 'satisfied', 'satisfied',
+                                   ifelse(kNN.prediction == 'satisfied' & c50.prediction == 'satisfied' & 
+                                           SVM.prediction == 'satisfied', 'satisfied',
+                                   ifelse(kNN.prediction == 'satisfied' & SVM.prediction == 'satisfied' & 
+                                           NN.prediction == 'satisfied', 'satisfied',
+                                   ifelse(kNN.prediction == 'satisfied' & SVM.prediction == 'satisfied' & 
+                                           NN.prediction == 'satisfied', 'satisfied',
+                                   ifelse(c50.prediction == 'satisfied' & SVM.prediction == 'satisfied' & 
+                                           NN.prediction == 'satisfied', 'satisfied',
+                                         'satisfied', 'neutral or dissatisfied')))))))))))
+    return(ensemble.predict)
+  }
+
+
+#Predicting the values for the test data
+ensemble.predict <- ensemble.model(test.data)
+
+#Printing the confusionMatrix for the SVM model
+confusionMatrix(ensemble.predict, test.data[,23])
+```
