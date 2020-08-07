@@ -13,7 +13,7 @@ library(factoextra)
 library(C50)
 
 #Importing training data
-train.shiny <- read.csv("D:/Northeastern/DM & ML/Project/Shiny App/passenger_survey_data_1.csv", stringsAsFactors = T)
+train.shiny <- read.csv("passenger_survey_data_1.csv", stringsAsFactors = T)
 
 #Removing unnessary columns
 train.shiny <- train.shiny[,-(1:2)]
@@ -172,7 +172,7 @@ server <- function(input, output, session) {
         }
         
         # Predicting the value for the test data
-        val <- predict(c50.shiny, test[,-23])
+        val <- predict(c50.shiny, test)
         
         # setting the output value to character
         val <- as.character(val)

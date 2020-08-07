@@ -1,0 +1,548 @@
+---
+title: "Project"
+author: "Smit Patil"
+output: pdf_document
+---
+
+1. Data Acquisition
+
+```{r warning=FALSE, message=FALSE}
+#Reading both the airline survey data
+airline.data_1 <- read.csv("passenger_survey_data_1.csv", stringsAsFactors = T)
+airline.data_2 <- read.csv("passenger_survey_data_2.csv", stringsAsFactors = T)
+
+#Binding both the airline survey data into a single data frame
+airline.data <- rbind(airline.data_1, airline.data_2)
+
+#Looking at the head and the structure of the airline data
+head(airline.data)
+str(airline.data)
+
+#Removing column 1: x and column 2: id, as they are redundant for this application
+airline.data <- airline.data[,-(1:2)]
+
+#Printing the summary of the airline data
+summary(airline.data)
+```
+
+2. Data Exploration
+
+```{r warning=FALSE, message=FALSE}
+#Importing libraries to calculate outliers and plot the correlation graph
+library(ggplot2)
+library(hrbrthemes)
+library(viridis)
+library(corrplot)
+library(GGally)
+
+#Looking for any NA values present in the dataset
+anyNA(airline.data)
+
+#Finding the column names which have NA values present in them
+colnames(airline.data)[colSums(is.na(airline.data)) > 0]
+
+#Using for loop to print histograms of airline data
+for(i in 1:ncol(airline.data))
+  {
+    sprintf("Histogram for: ", colnames(airline.data[i]))
+    hist((as.numeric(airline.data[,i])), xlab = colnames(airline.data[i]), col = 'steelblue1', main = NULL)
+ }
+
+#Plotting log transformed histogram for "Flight Distance", "Departure Delay", and "Arrival Delay"
+#as they are Rigt Skewed
+for (i in c("Flight.Distance", "Departure.Delay.in.Minutes", "Arrival.Delay.in.Minutes"))
+  {
+    hist(log(airline.data[,i]), col = "steelblue4", main = "Log Transformed", xlab = i)
+  }
+
+#Plotting a boxplot for the "Age" column in the airline data
+airline.data %>%
+  ggplot( aes(x=NULL, y=Age)) +
+    geom_boxplot() +
+    theme_minimal() +
+    theme(
+      legend.position="none",
+      plot.title = element_text(size=11)
+    ) +
+    ggtitle("Boxplot") +
+    xlab("Value")
+
+#Creating a data frame to calculate outliers for continious variables
+airline.outliers <- airline.data[,c("Flight.Distance", "Departure.Delay.in.Minutes", "Arrival.Delay.in.Minutes")]
+
+#Looking for outliers in the continious variable columns
+for (i in c("Flight.Distance", "Departure.Delay.in.Minutes", "Arrival.Delay.in.Minutes"))
+  {
+    mean_data <- mean(airline.outliers[,i], na.rm = T)
+    sd_data <- sd(airline.outliers[,i], na.rm = T)
+    zscore <- abs((airline.outliers[,i] - mean_data)/sd_data)
+    airline.outliers[,i] <- zscore
+  }
+
+#Setting non outlier values to NA to retrive the outliers
+airline.outliers[airline.outliers<3] <- NA
+outliers <- airline.outliers[rowSums(is.na(airline.outliers)) != ncol(airline.outliers), ]
+
+#Viewing the outliers
+head(outliers)
+
+#Converting factor columns in airline data to numeric
+for (i in 1:ncol(airline.data)-1)
+  {
+    if(is.factor(airline.data[,i]))
+      {
+        airline.data[,i] <- as.numeric(airline.data[,i])
+      }
+  }
+
+#Plotting correlation plot for the airline data
+correlation <- cor(na.omit(airline.data[,-23]))
+corrplot(correlation, method = "color", type = "lower", col.text = "black", number.cex = .7, tl.col = "black", tl.srt = 45)
+
+#Subsetting the highly correlated variables into a new data frame
+selected_features <- airline.data[,c("Departure.Delay.in.Minutes", "Arrival.Delay.in.Minutes")]
+
+#Plotting correlation graph for highly correlated variables
+ggpairs(selected_features, columnLabels = c("Departure Delay", "Arrival Delay"))
+```
+
+3. Data Cleaning and Shaping
+
+```{r warning=F, message=F}
+#Importing Libraries to perform data cleaning
+library(tidyverse)
+library(arules)
+library(stats)
+library(factoextra)
+
+#Creating a copy of airline data for data cleaning purpose
+passenger.data <- airline.data
+
+#Removing outliers from the passenger data
+#passenger.data <- passenger.data[-as.numeric(row.names(outliers)), ]
+
+#Replacing NA values in "Arrival Delay" column with mean value of the column
+passenger.data$Arrival.Delay.in.Minutes <- passenger.data$Arrival.Delay.in.Minutes %>% replace_na(mean(passenger.data$Arrival.Delay.in.Minutes, na.rm = T))
+
+#Descretizing the "Age" column into 6 distinct bins
+#passenger.data$Age <- discretize(passenger.data$Age, breaks = 6)
+
+#Log transforming right skewed data
+for (i in c("Flight.Distance", "Departure.Delay.in.Minutes", "Arrival.Delay.in.Minutes"))
+  {
+    passenger.data[,i] <- log(passenger.data[, i] + 1)
+  }
+
+
+#Converting factor columns to numeric
+for (i in 1:ncol(passenger.data)-1)
+  {
+    if(is.factor(passenger.data[,i]))
+      {
+        passenger.data[,i] <- as.numeric(passenger.data[,i])
+      }
+  }
+
+#Performing PCA on the dataset
+passenger.pca <- prcomp(passenger.data[,-23], center = T, scale = T)
+
+#Printing PC's and summary of the PC's
+print(passenger.pca)
+summary(passenger.pca)
+
+#Plotting variance plot for the first 10 PC's
+screeplot(passenger.pca, type = "l", main = "Plot of the first 10 PCs") +
+abline(h = 1, col="red", lty=5)
+
+#Plotting scatter plot for the satisfaction levels from the calculated values of PC's
+fviz_pca_ind(passenger.pca, geom.ind = "point", pointshape = 21, 
+             pointsize = 2, 
+             fill.ind = passenger.data$satisfaction, 
+             col.ind = "black", 
+             palette = "jco", 
+             addEllipses = TRUE,
+             label = "var",
+             col.var = "black",
+             repel = TRUE,
+             legend.title = "Satisfaction") +
+  ggtitle("2D PCA-plot from 23 feature dataset") +
+  theme(plot.title = element_text(hjust = 0.5))
+#From the above summary and graphs of the PCs, we see a low level of variance in the features, and reducing the
+#dimension will not significantly increase the efficiency of the models. 
+#Hence I will not go ahead and implement PCA for this dataset.
+
+#Creating a function for normalization
+normalize <- function(x)
+  {
+    return ((x-min(x))/(max(x)-min(x)))
+  }
+
+#Normalized passenger data
+passenger.data <- data.frame(lapply(passenger.data[,-23], normalize), passenger.data$satisfaction)
+colnames(passenger.data)[23] <- "satisfaction"
+
+str(passenger.data)
+```
+
+4. Model Construction and Evaluation
+
+```{r warning=F, message=F}
+#Importing libraries
+library(caret)
+library(e1071)
+library(neuralnet)
+library(class)
+library(rpart)
+library(C50)
+
+#Creating a random sample using createDataPartition function
+set.seed(1)
+sample <- createDataPartition(passenger.data$satisfaction, p = 0.75, list = FALSE)
+
+#Creating a training and testing dataset based on the sampled value
+train.data <- passenger.data[sample,]
+test.data <- passenger.data[-sample,]
+
+#############################
+#### Logistic Regression ####
+#############################
+
+
+##### Logistic Regression Model Implementation #####
+
+#Creating Logistic Regression model
+LR.model <- glm(satisfaction~., data = train.data, family = "binomial")
+
+#Summary of Logistic regression model
+summary(LR.model)
+
+#Predicting the values for test data
+LR.predict_prob <- predict(LR.model, test.data, type = "response")
+LR.predict <- as.factor(ifelse(LR.predict_prob < 0.5, "neutral or dissatisfied", "satisfied"))
+
+#Producing Confusion Matrix for the classification
+LR.CM <- confusionMatrix(LR.predict, test.data$satisfaction)
+LR.CM
+
+
+##### Logistic Regression Model Improvement #####
+
+#Stepwise backward elimination using AIC
+step(LR.model, direction =  "backward")
+
+#Creating a new model after backwards elimination
+LR.model_new <- glm(formula = satisfaction ~ Gender + Customer.Type + Age + Type.of.Travel + Class +
+                      Flight.Distance + Inflight.wifi.service + Departure.Arrival.time.convenient +
+                      Ease.of.Online.booking + Food.and.drink + Online.boarding + Seat.comfort +
+                      Inflight.entertainment + On.board.service + Leg.room.service + Baggage.handling +
+                      Checkin.service + Inflight.service + Cleanliness + Departure.Delay.in.Minutes +
+                      Arrival.Delay.in.Minutes, family = "binomial", data = train.data)
+
+#Summary of the new logistic regression model
+summary(LR.model_new)
+
+#Predicting the values after backward elimination 
+LR.predict_prob_new <- predict(LR.model_new, test.data, type = "response")
+LR.predict_new <- as.factor(ifelse(LR.predict_prob_new < 0.5, "neutral or dissatisfied", "satisfied"))
+
+#Producing Confusion Matrix for the classification of new model
+LR.CM_new <- confusionMatrix(LR.predict_new, test.data$satisfaction)
+LR.CM_new
+
+#We see that there is no improvement in the accuracy of the model after backward elimination
+
+##############################
+#### k-Nearest Neighbors  ####
+##############################
+
+
+##### k-Nearest Neighbors model Implementation #####
+
+#Creating train labels and test labels for kNN implementation
+train.label <- train.data[,23]
+test.label <- test.data[,23]
+
+Sys.time()
+#Creating kNN model
+kNN.predict <- knn(train = train.data[,-23], test = test.data[,-23], cl = train.label, k = 10)
+
+#Producing Confusion matrix for the classification
+kNN.CM <- confusionMatrix(kNN.predict, test.label)
+kNN.CM
+Sys.time()
+
+
+##### k-Nearest Neighbors model Tuning #####
+
+Sys.time()
+#Creating kNN model
+kNN.predict_new <- knn(train = train.data[,-23], test = test.data[,-23], cl = train.label, k = 5)
+
+#Producing Confusion Matrix for the classification
+kNN.CM_new <- confusionMatrix(kNN.predict_new, test.label)
+kNN.CM_new
+Sys.time()
+
+#Decreasing the number of neighbors from 10 to 5 increases the accuracy of the model from 92.69% to 92.73%
+#The gain in the accuracy in minuscule but the time required calculate for k = 5 is also less than k = 10
+#I have also tried to implement the model with k = 311 which is the "sqrt(nrow(train.data))" on RStudio Cloud,
+#but the accuracy came out to be much more lesser that k = 5 or k = 10.
+
+#############################
+####### Decision Tree #######
+#############################
+
+
+##### Decision Tree Model Implementation #####
+
+#Creating a Decision Tree model using rpart
+rpart.model <- rpart(satisfaction ~ ., data = train.data, method = "class")
+
+#Predicting the probabilities for the target variable from the test data
+rpart.predict_prob <- predict(rpart.model, test.data)
+
+#Replacing the probability values to the values of the target variable
+rpart.predict <- as.factor(ifelse(rpart.predict_prob[,2] < 0.5, "neutral or dissatisfied", "satisfied"))
+
+#Producing Confusion Matrix for the classification using rpart
+rpart.CM <- confusionMatrix(rpart.predict, test.data$satisfaction)
+rpart.CM
+
+
+##### Decision Tree Model Improvement #####
+
+#Creating a Decesion Tree model using C5.0
+c50.model <- C5.0(x = train.data[,-23], y = train.data$satisfaction)
+
+#Predicting the target variable of the test data based on the above model
+c50.predict <- predict(c50.model, test.data[,-23])
+
+#Producing Confusion Matrix for the classification using rpart
+c50.CM <- confusionMatrix(c50.predict, test.data$satisfaction)
+c50.CM
+
+#We see that changing the Decision Tree model from rpart to C5.0 increases the accuracy from 88.45% to 95.79%
+
+##############################
+### Support Vector Machine ###
+##############################
+
+
+##### SVM Model Implementation #####
+
+Sys.time()
+#Creating SVM model
+SVM.model <- svm(satisfaction ~ ., data = train.data, probability = TRUE)
+
+Sys.time()
+#Predicting the values for the test data
+SVM.predict <- predict(SVM.model, test.data, probability = TRUE)
+
+#Printing the confusionMatrix for the SVM model
+SVM.CM <- confusionMatrix(SVM.predict, test.data$satisfaction)
+SVM.CM
+Sys.time()
+
+
+##### SVM Model Improvement #####
+
+Sys.time()
+#Creating SVM model
+SVM.model_new <- svm(satisfaction ~ ., data = train.data, kernel = "linear", probability = TRUE)
+
+Sys.time()
+#Predicting the values for the test data
+SVM.predict_new <- predict(SVM.model_new, test.data, probability = TRUE)
+
+#Printing the confusionMatrix for the SVM model
+SVM.CM_new <- confusionMatrix(SVM.predict_new, test.data$satisfaction)
+SVM.CM_new
+Sys.time()
+
+#To increase the accuracy of the SVM model, I changed the kernel from "Radial"(default) to "Linear"
+#The new kernal instead of increase the accuracy of the model decreased the accuracy
+#Hence I will be considering the original SVM model for ensembler model construction
+
+#############################
+###### Neural Network  ######
+#############################
+
+
+##### Neural Network Model Implementation #####
+
+#Creating training and testing datasets for Neural Netwrok(NN)
+NN.train <- train.data
+NN.test <- test.data
+
+#Setting y as an integer
+NN.train$satisfaction <- as.integer(NN.train$satisfaction)
+NN.test$satisfaction <- as.integer(NN.test$satisfaction)
+
+#Creating function softplus for smoothing
+softplus <- function(x) log(1+exp(x))
+
+Sys.time()
+#Creating Neural Network model
+NN.model <- neuralnet(satisfaction ~ ., NN.train, hidden = 1, threshold = 1, rep = 1, linear.output = FALSE, act.fct = softplus)
+
+Sys.time()
+#plotting the neural network graph
+plot(NN.model, rep="best")
+
+Sys.time()
+#Computing the values for the test data
+NN.predict <- compute(NN.model, NN.test[,-23])
+
+#Calculating correlation between the actual and predicted values
+NN.cor <- cor(NN.predict$net.result, NN.test$satisfaction)
+sprintf("The correlation between actual values and predicted values by Neural Network model is: %s", NN.cor)
+
+#Denormalizing the predicted values of the Neural Network
+NN.prob <- as.data.frame(NN.predict$net.result*(max(NN.train$satisfaction) - min(NN.train$satisfaction)) + min(NN.train$satisfaction))
+
+#Predicting the values for the Neural Network
+NN.pred <- as.factor(ifelse(NN.prob < (min(NN.prob) + (max(NN.prob) - min(NN.prob))/2), "neutral or dissatisfied", "satisfied"))
+
+#Printing the confusionMatrix for the Neural Network
+NN.CM <- confusionMatrix(NN.pred, test.data[,23])
+NN.CM
+Sys.time()
+
+##### Neural Network Model Tuning #####
+
+Sys.time()
+#Creating Neural Network model
+NN.model_new <- neuralnet(satisfaction ~ ., NN.train, hidden = 2, threshold = 1, rep = 1, linear.output = FALSE, act.fct = softplus)
+
+Sys.time()
+#plotting the neural network graph
+plot(NN.model_new, rep="best")
+
+Sys.time()
+#Computing the values for the test data
+NN.predict_new <- compute(NN.model_new, NN.test[,-23])
+
+#Calculating correlation between the actual and predicted values
+NN.cor_new <- cor(NN.predict_new$net.result, NN.test$satisfaction)
+sprintf("The correlation between actual values and predicted values by the new Neural Network model is: %s", NN.cor_new)
+
+#Denormalizing the predicted values of the new Neural Network model
+NN.prob_new <- as.data.frame(NN.predict_new$net.result*(max(NN.train$satisfaction) - min(NN.train$satisfaction)) + min(NN.train$satisfaction))
+
+#Predicting the values for the new Neural Network model
+NN.pred_new <- as.factor(ifelse(NN.prob_new < (min(NN.prob_new) + (max(NN.prob_new) - min(NN.prob_new))/2), "neutral or dissatisfied", "satisfied"))
+
+#Printing the confusionMatrix for the Neural Network
+NN.CM_new <- confusionMatrix(NN.pred_new, test.data[,23])
+NN.CM_new
+Sys.time()
+
+
+#Increasing the number of hidden layers did not significantly increase the accuracy of the Neural Network
+#I also tried to increase the setpmax and decrease the threshold but the dataset is too large both for my 
+#computer and RStudio Cloud and returns error.
+
+
+
+##### Comparision of models #####
+
+#Creating a data frame to compare all models along with their optimized versions
+model <- c(rep("Logistic Regression", 2), rep("k-NN", 2), rep("Decision Tree", 2), 
+           rep("SVM", 2), rep("Neural Network", 2))
+version <- rep(c("Old", "New"), 5)
+accuracy <- c(LR.CM$overall[1]*100, LR.CM_new$overall[1]*100, kNN.CM$overall[1]*100,
+              kNN.CM_new$overall[1]*100, rpart.CM$overall[1]*100, c50.CM$overall[1]*100,
+              SVM.CM$overall[1]*100, SVM.CM_new$overall[1]*100, NN.CM$overall[1]*100, 
+              NN.CM_new$overall[1]*100)
+
+#Printing the accuracy for all the models
+models.compare <- data.frame(model, version, accuracy)
+models.compare
+
+#Plotting a grouped bar plot for the accuracy of all the models grouped by their versions
+ggplot(models.compare, aes(fill=version, y=accuracy, x=model)) + 
+  geom_bar(stat="identity", width=0.7, position=position_dodge(width=0.8)) +
+  theme_minimal() + ggtitle("Comparing the accuracy of all the models") + xlab("Models") + ylab("Accuracy (%)")
+
+#After comparing the the accuracy of all the models we see that c5.0 is having the highest accuracy among all
+#SVM with "kernal = radial" also provides us with a high accuracy
+
+
+##############################
+####### Ensemble Model #######
+##############################
+
+##### Construction of an Ensemble Model #####
+
+#Creating an ensemble model function
+ensemble.model <- function(data)
+  {
+    LR.prediction <- as.factor(ifelse((predict(LR.model, data, type = "response")) < 0.5, 
+                                      "neutral or dissatisfied", "satisfied"))
+    kNN.prediction <- knn(train = train.data[,-23], test = data[,-23], cl = train.label, k = 5)
+    c50.prediction <- predict(c50.model, data[,-23])
+    SVM.prediction <- predict(SVM.model, data, probability = TRUE)
+    NN.data <- data
+    NN.data$satisfaction <- as.integer(NN.data$satisfaction)
+    NN.pred_prob <- compute(NN.model_new, NN.data[,-23])
+    NN.prediction <- as.data.frame(NN.pred_prob$net.result*(max(NN.data$satisfaction) - 
+                                  min(NN.data$satisfaction)) + min(NN.data$satisfaction))
+    NN.prediction <- as.factor(ifelse(NN.prediction < (min(NN.prediction) + (max(NN.prediction) - 
+                                       min(NN.prediction))/2), "neutral or dissatisfied", "satisfied"))
+    ensemble.predict <-  as.factor(ifelse(LR.prediction == 'satisfied' & kNN.prediction == 'satisfied' & 
+                                            c50.prediction == 'satisfied', 'satisfied',
+                                   ifelse(LR.prediction == 'satisfied' & kNN.prediction == 'satisfied' & 
+                                           SVM.prediction == 'satisfied', 'satisfied',
+                                   ifelse(LR.prediction == 'satisfied' & kNN.prediction == 'satisfied' & 
+                                           NN.prediction == 'satisfied', 'satisfied',
+                                   ifelse(LR.prediction == 'satisfied' & c50.prediction == 'satisfied' & 
+                                           SVM.prediction == 'satisfied', 'satisfied',
+                                   ifelse(LR.prediction == 'satisfied' & c50.prediction == 'satisfied' & 
+                                           NN.prediction == 'satisfied', 'satisfied',
+                                   ifelse(LR.prediction == 'satisfied' & SVM.prediction == 'satisfied' & 
+                                           NN.prediction == 'satisfied', 'satisfied',
+                                   ifelse(kNN.prediction == 'satisfied' & c50.prediction == 'satisfied' & 
+                                           SVM.prediction == 'satisfied', 'satisfied',
+                                   ifelse(kNN.prediction == 'satisfied' & SVM.prediction == 'satisfied' & 
+                                           NN.prediction == 'satisfied', 'satisfied',
+                                   ifelse(kNN.prediction == 'satisfied' & SVM.prediction == 'satisfied' & 
+                                           NN.prediction == 'satisfied', 'satisfied',
+                                   ifelse(c50.prediction == 'satisfied' & SVM.prediction == 'satisfied' & 
+                                           NN.prediction == 'satisfied', 'satisfied', 
+                                          'neutral or dissatisfied')))))))))))
+    return(ensemble.predict)
+  }
+
+
+#Predicting the values for the test data
+ensemble.predict <- ensemble.model(test.data)
+
+#Printing the confusionMatrix for the SVM model
+ensemble.CM <- confusionMatrix(ensemble.predict, test.data[,23])
+ensemble.CM
+
+#After creating the ensemble model for all the 5 models we get and accuracy of 93.99%
+
+
+##### Comparision of models with the Ensemble model #####
+
+#Creating a data frame to compare all models along with the ensemble model
+model.names <- c("Logistic", "k-NN", "rpart", "C5.0", "SVM", "Neural Network", "Ensemble")
+accuracy.all <- c(round(LR.CM_new$overall[1]*100,2), round(kNN.CM$overall[1]*100, 2), round(rpart.CM$overall[1]*100, 2), 
+                  round(c50.CM$overall[1]*100, 2), round(SVM.CM$overall[1]*100, 2), round(NN.CM_new$overall[1]*100, 2), 
+                  round(ensemble.CM$overall[1]*100, 2))
+
+#Printing the accuracy for all the models along with the ensemble model
+models.all <- data.frame(model.names, accuracy.all)
+models.all
+
+area.color <- c(NA, NA, NA, NA, NA, NA, "withcolor")
+#Plotting a grouped bar plot for the accuracy of all the models grouped by their versions
+ggplot(models.all, aes(x= reorder(model.names, -accuracy.all), model.names, y=accuracy.all, fill = area.color)) + 
+  geom_text(aes(label= accuracy.all), vjust= -0.5) +
+  geom_bar(stat="identity") + theme_minimal() + theme(legend.position="none") + 
+  ggtitle("Comparing the accuracy of all the models w.r.t ensemble model") + xlab("Models") + ylab("Accuracy (%)")
+
+#A comprehensive comaprison of all the models and their standing with respect to the ensemble model.
+#Overall the top 2 models are Decision tree with C5.0 and SVM with Radial Kernal
+```
