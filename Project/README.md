@@ -1,4 +1,4 @@
-#Pedicting Airline Passenger Satisfaction
+# Predicting Airline Passenger Satisfaction
 
 This project is a part of my coursework in Intro to Machine Learning and Data mining.
 
